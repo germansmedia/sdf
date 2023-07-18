@@ -1,0 +1,16 @@
+[package]
+name = "sdf"
+version = "0.1.0"
+authors = ["Desmond Germans, Ph.D <desmond@germansmedia.nl>"]
+edition = "2018"
+
+[profile.dev]
+opt-level = 0
+debug = true
+lto = true
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = "fat"
+codegen-units = 1

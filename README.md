@@ -1,2 +1,3 @@
 # sdf
-SDF ray marching engine exploration
+
+SDF ray marching engine exploration.
