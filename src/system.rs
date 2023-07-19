@@ -365,6 +365,7 @@ impl System {
         let extension_names = [
             ffi::VK_KHR_SURFACE_EXTENSION_NAME.as_ptr(),
             ffi::VK_KHR_XCB_SURFACE_EXTENSION_NAME.as_ptr(),
+            //ffi::VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME.as_ptr(),
         ];
         let info = ffi::VkInstanceCreateInfo {
             sType: ffi::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -545,7 +546,7 @@ impl System {
             ffi::VK_SUCCESS => { },
             code => { 
                 unsafe { ffi::vkDestroyInstance(vk_instance,null_mut()) };
-                return Err(format!("System::create_gpu: unable to create VkDevice ({})",super::vk_code_to_string(code)));
+                return Err(format!("System::create_gpu: unable to create VkDevice ({})",vk_code_to_string(code)));
             },
         }
         let vk_device = unsafe { vk_device.assume_init() };
@@ -570,7 +571,7 @@ impl System {
                     ffi::vkDestroyDevice(vk_device,null_mut());
                     ffi::vkDestroyInstance(vk_instance,null_mut());
                 }
-                return Err(format!("System::create_gpu: unable to create command pool ({})",super::vk_code_to_string(code)));
+                return Err(format!("System::create_gpu: unable to create command pool ({})",vk_code_to_string(code)));
             },
         }
         let vk_command_pool = unsafe { vk_command_pool.assume_init() };
@@ -579,7 +580,7 @@ impl System {
         let info = ffi::VkDescriptorPoolCreateInfo {
             sType: ffi::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             pNext: null_mut(),
-            flags: 0,
+            flags: ffi::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
             maxSets: 5u32,
             poolSizeCount: 1,
             pPoolSizes: &ffi::VkDescriptorPoolSize {
@@ -595,7 +596,7 @@ impl System {
                     ffi::vkDestroyDevice(vk_device,null_mut());
                     ffi::vkDestroyInstance(vk_instance,null_mut());
                 }
-                return Err(format!("System::create_gpu: unable to create descriptor pool ({})",super::vk_code_to_string(code)));
+                return Err(format!("System::create_gpu: unable to create descriptor pool ({})",vk_code_to_string(code)));
             }
         }
         let vk_descriptor_pool = unsafe { vk_descriptor_pool.assume_init() };

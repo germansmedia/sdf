@@ -10,9 +10,23 @@ use {
 pub struct CommandBuffer {
     pub gpu: Rc<Gpu>,
     pub vk_command_buffer: ffi::VkCommandBuffer,
+    pub compute_pipeline: Option<Rc<ComputePipeline>>,
+    pub pipeline_layout: Option<Rc<PipelineLayout>>,
+    pub descriptor_set: Option<Rc<DescriptorSet>>,
 }
 
 impl CommandBuffer {
+
+    pub fn reset(&mut self) -> Result<(),String> {
+
+        self.pipeline_layout = None;
+        self.descriptor_set = None;
+        self.compute_pipeline = None;
+        match unsafe { ffi::vkResetCommandBuffer(self.vk_command_buffer,0) } {
+            ffi::VK_SUCCESS => Ok(()),
+            code => Err(format!("CommandBuffer::reset: unable to reset command buffer ({})",vk_code_to_string(code))),
+        }
+    }
 
     pub fn begin(&self) -> Result<(),String> {
 
@@ -24,7 +38,7 @@ impl CommandBuffer {
         };
         match unsafe { ffi::vkBeginCommandBuffer(self.vk_command_buffer,&info) } {
             ffi::VK_SUCCESS => Ok(()),
-            code => Err(format!("VulkanCommandBuffer::begin: unable to begin command buffer ({})",super::vk_code_to_string(code))),
+            code => Err(format!("VulkanCommandBuffer::begin: unable to begin command buffer ({})",vk_code_to_string(code))),
         }
     }
 
@@ -32,12 +46,13 @@ impl CommandBuffer {
 
         match unsafe { ffi::vkEndCommandBuffer(self.vk_command_buffer) } {
             ffi::VK_SUCCESS => Ok(()),
-            code => Err(format!("VulkanCommandBuffer::end: unable to end command buffer ({})",super::vk_code_to_string(code))),
+            code => Err(format!("VulkanCommandBuffer::end: unable to end command buffer ({})",vk_code_to_string(code))),
         }
     }
 
-    pub fn bind_compute_pipeline(&self,compute_pipeline: &ComputePipeline) {
+    pub fn bind_compute_pipeline(&mut self,compute_pipeline: &Rc<ComputePipeline>) {
 
+        self.compute_pipeline = Some(Rc::clone(&compute_pipeline));
         unsafe { ffi::vkCmdBindPipeline(
             self.vk_command_buffer,
             ffi::VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -45,8 +60,10 @@ impl CommandBuffer {
         ) };
     }
 
-    pub fn bind_descriptor_set(&self,pipeline_layout: &PipelineLayout,descriptor_set: &DescriptorSet) {
+    pub fn bind_descriptor_set(&mut self,pipeline_layout: &Rc<PipelineLayout>,descriptor_set: &Rc<DescriptorSet>) {
 
+        self.pipeline_layout = Some(Rc::clone(&pipeline_layout));
+        self.descriptor_set = Some(Rc::clone(&descriptor_set));
         unsafe { ffi::vkCmdBindDescriptorSets(
             self.vk_command_buffer,
             ffi::VK_PIPELINE_BIND_POINT_COMPUTE,

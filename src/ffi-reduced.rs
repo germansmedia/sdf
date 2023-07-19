@@ -440,6 +440,7 @@ extern "C" {
 
 pub const VK_KHR_SURFACE_EXTENSION_NAME: &'static [u8; 15usize] = b"VK_KHR_surface\0";
 pub const VK_KHR_XCB_SURFACE_EXTENSION_NAME: &'static [u8; 19usize] = b"VK_KHR_xcb_surface\0";
+//pub const VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME: &'static [u8; 26usize] = b"VK_KHR_timeline_semaphore\0";
 
 pub type VkStructureType = ::std::os::raw::c_uint;
 
@@ -464,7 +465,7 @@ pub const VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO: VkStructureType = 42;
 pub const VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR: VkStructureType = 1000001000;
 pub const VK_STRUCTURE_TYPE_PRESENT_INFO_KHR: VkStructureType = 1000001001;
 pub const VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR: VkStructureType = 1000005000;
-pub const VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO: VkStructureType = 1000207002;
+//pub const VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO: VkStructureType = 1000207002;
 
 pub type VkFlags = u32;
 
@@ -1195,9 +1196,8 @@ extern "C" {
     );
 }
 
-pub type VkCommandPoolCreateFlagBits = ::std::os::raw::c_uint;
 pub type VkCommandPoolCreateFlags = VkFlags;
-
+pub type VkCommandPoolCreateFlagBits = ::std::os::raw::c_uint;
 pub const VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: VkCommandPoolCreateFlagBits = 2;
 
 #[repr(C)]
@@ -1231,6 +1231,8 @@ extern "C" {
 }
 
 pub type VkDescriptorPoolCreateFlags = VkFlags;
+pub type VkDescriptorPoolCreateFlagBits = ::std::os::raw::c_uint;
+pub const VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT: VkDescriptorPoolCreateFlagBits = 1;
 
 pub type VkDescriptorType = ::std::os::raw::c_uint;
 
@@ -1890,6 +1892,7 @@ extern "C" {
     ) -> VkResult;
 }
 
+/*
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkSemaphoreTypeCreateInfo {
@@ -1901,6 +1904,7 @@ pub struct VkSemaphoreTypeCreateInfo {
 
 pub type VkSemaphoreType = ::std::os::raw::c_uint;
 pub const VK_SEMAPHORE_TYPE_TIMELINE: VkSemaphoreType = 1;
+*/
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2193,4 +2197,26 @@ pub struct VkPresentInfoKHR {
 
 extern "C" {
     pub fn vkQueuePresentKHR(queue: VkQueue, pPresentInfo: *const VkPresentInfoKHR) -> VkResult;
+}
+
+pub type VkCommandBufferResetFlags = VkFlags;
+
+extern "C" {
+    pub fn vkResetCommandBuffer(
+        commandBuffer: VkCommandBuffer,
+        flags: VkCommandBufferResetFlags,
+    ) -> VkResult;
+}
+
+extern "C" {
+    pub fn vkFreeDescriptorSets(
+        device: VkDevice,
+        descriptorPool: VkDescriptorPool,
+        descriptorSetCount: u32,
+        pDescriptorSets: *const VkDescriptorSet,
+    ) -> VkResult;
+}
+
+extern "C" {
+    pub fn vkResetFences(device: VkDevice, fenceCount: u32, pFences: *const VkFence) -> VkResult;
 }

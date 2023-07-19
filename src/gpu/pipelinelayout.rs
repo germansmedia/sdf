@@ -29,9 +29,9 @@ impl PipelineLayout {
         match unsafe { ffi::vkAllocateDescriptorSets(self.gpu.vk_device,&info,vk_descriptor_set.as_mut_ptr()) } {
             ffi::VK_SUCCESS => Ok(DescriptorSet {
                 gpu: Rc::clone(&self.gpu),
-                vk_descriptor_set: unsafe { vk_descriptor_set.assume_init() },
+                vk_descriptor_set: { let vk = unsafe { vk_descriptor_set.assume_init() }; println!("CREATED descriptor set {:?}",vk); vk },
             }),
-            code => Err(format!("VulkanGpu::create_surface: Unable to create Vulkan XCB surface ({})",super::vk_code_to_string(code))),
+            code => Err(format!("VulkanGpu::create_surface: Unable to create Vulkan XCB surface ({})",vk_code_to_string(code))),
         }
     }
 }

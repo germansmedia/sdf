@@ -5,7 +5,7 @@ use {
         rc::Rc,
         mem::MaybeUninit,
         ptr::null_mut,
-        ffi::c_void,
+        //ffi::c_void,
     },
 };
 
@@ -22,7 +22,7 @@ pub struct Gpu {
 
 impl Gpu {
 
-    pub fn build_swapchain_resources(&self,vk_surface: ffi::VkSurfaceKHR,r: Rect<i32>) -> Result<(ffi::VkSwapchainKHR,Vec<ffi::VkImageView>),String> {
+    pub fn build_swapchain_resources(&self,vk_surface: ffi::VkSurfaceKHR,r: &Rect<i32>) -> Result<(ffi::VkSwapchainKHR,Vec<ffi::VkImageView>),String> {
 
         // get surface capabilities to calculate the extent and image count
         let mut capabilities = MaybeUninit::<ffi::VkSurfaceCapabilitiesKHR>::uninit();
@@ -33,7 +33,7 @@ impl Gpu {
         ) } {
             ffi::VK_SUCCESS => { },
             code => {
-                return Err(format!("Gpu::build_swapchain_resources: unable to get surface capabilities ({})",super::vk_code_to_string(code)));
+                return Err(format!("Gpu::build_swapchain_resources: unable to get surface capabilities ({})",vk_code_to_string(code)));
             },
         }
         let capabilities = unsafe { capabilities.assume_init() };
@@ -74,7 +74,7 @@ impl Gpu {
         ) } {
             ffi::VK_SUCCESS => { },
             code => {
-                return Err(format!("Gpu::build_swapchain_resources: unable to get surface formats ({})",super::vk_code_to_string(code)));
+                return Err(format!("Gpu::build_swapchain_resources: unable to get surface formats ({})",vk_code_to_string(code)));
             },
         }
         let mut formats = vec![MaybeUninit::<ffi::VkSurfaceFormatKHR>::uninit(); count as usize];
@@ -86,14 +86,14 @@ impl Gpu {
         ) } {
             ffi::VK_SUCCESS => { },
             code => {
-                return Err(format!("Gpu::build_swapchain_resources: unable to get surface formats ({})",super::vk_code_to_string(code)));
+                return Err(format!("Gpu::build_swapchain_resources: unable to get surface formats ({})",vk_code_to_string(code)));
             }
         }
         let formats = unsafe { std::mem::transmute::<_,Vec<ffi::VkSurfaceFormatKHR>>(formats) };
         let mut format_supported = false;
         println!("Gpu::build_swapchain_resources: supported formats:");
         for format in formats.iter() {
-            println!("Gpu::build_swapchain_resources:     {} at space {}",super::vk_format_to_string(format.format),super::vk_colorspace_to_string(format.colorSpace));
+            println!("Gpu::build_swapchain_resources:     {} at space {}",vk_format_to_string(format.format),vk_colorspace_to_string(format.colorSpace));
             if (format.format == ffi::VK_FORMAT_B8G8R8A8_UNORM) && (format.colorSpace == ffi::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 format_supported = true;
             }
@@ -122,7 +122,8 @@ impl Gpu {
             presentMode: ffi::VK_PRESENT_MODE_FIFO_KHR,
             clipped: ffi::VK_TRUE,
             oldSwapchain: null_mut(),
-        };        
+        };    
+        println!("creating swapchain");
         let mut vk_swapchain: ffi::VkSwapchainKHR = null_mut();
         match unsafe { ffi::vkCreateSwapchainKHR(
             self.vk_device,
@@ -132,17 +133,18 @@ impl Gpu {
         ) } {
             ffi::VK_SUCCESS => { },
             code => {
-                return Err(format!("Gpu::build_swapchain_resources: unable to create swap chain ({})",super::vk_code_to_string(code)));
+                return Err(format!("Gpu::build_swapchain_resources: unable to create swap chain ({})",vk_code_to_string(code)));
             },
         }
 
         // get swapchain images
+        println!("getting swapchain images");
         let mut count = 0u32;
         match unsafe { ffi::vkGetSwapchainImagesKHR(self.vk_device,vk_swapchain,&mut count as *mut u32,null_mut()) } {
             ffi::VK_SUCCESS => { },
             code => {
                 unsafe { ffi::vkDestroySwapchainKHR(self.vk_device,vk_swapchain,null_mut()) };
-                return Err(format!("Gpu::build_swapchain_resources: unable to get swap chain image count ({})",super::vk_code_to_string(code)));
+                return Err(format!("Gpu::build_swapchain_resources: unable to get swap chain image count ({})",vk_code_to_string(code)));
             },
         }
         let mut vk_images = vec![MaybeUninit::<ffi::VkImage>::uninit(); count as usize];
@@ -155,12 +157,13 @@ impl Gpu {
             ffi::VK_SUCCESS => { },
             code => {
                 unsafe { ffi::vkDestroySwapchainKHR(self.vk_device,vk_swapchain,null_mut()) };
-                return Err(format!("Gpu::build_swapchain_resources: unable to get swap chain images ({})",super::vk_code_to_string(code)));
+                return Err(format!("Gpu::build_swapchain_resources: unable to get swap chain images ({})",vk_code_to_string(code)));
             },
         }
         let vk_images = unsafe { std::mem::transmute::<_,Vec<ffi::VkImage>>(vk_images) };
 
         // create image views for the swapchain images
+        println!("creating swapchain image views");
         let results: Vec<Result<ffi::VkImageView,String>> = vk_images.iter().map(|vk_image| {
             let info = ffi::VkImageViewCreateInfo {
                 sType: ffi::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -186,7 +189,7 @@ impl Gpu {
             let mut vk_image_view: ffi::VkImageView = null_mut();
             match unsafe { ffi::vkCreateImageView(self.vk_device,&info,null_mut(),&mut vk_image_view) } {
                 ffi::VK_SUCCESS => Ok(vk_image_view),
-                code => Err(format!("Gpu::build_swapchain_resources: unable to create image view ({})",super::vk_code_to_string(code))),
+                code => Err(format!("Gpu::build_swapchain_resources: unable to create image view ({})",vk_code_to_string(code))),
             }
         }).collect();
         if results.iter().any(|result| result.is_err()) {
@@ -195,6 +198,8 @@ impl Gpu {
             return Err("Gpu::build_swapchain_resources: unable to create image view".to_string());
         }
         let vk_image_views: Vec<ffi::VkImageView> = results.into_iter().map(|result| result.unwrap()).collect();
+
+        println!("rebuilt swapchain");
 
         Ok((vk_swapchain,vk_image_views))
     }
@@ -214,7 +219,7 @@ impl Gpu {
             match unsafe { ffi::vkCreateXcbSurfaceKHR(self.vk_instance,&info,null_mut(),vk_surface.as_mut_ptr()) } {
                 ffi::VK_SUCCESS => { },
                 code => {
-                    return Err(format!("Gpu::create_surface: Unable to create Vulkan XCB surface ({})",super::vk_code_to_string(code)));
+                    return Err(format!("Gpu::create_surface: Unable to create Vulkan XCB surface ({})",vk_code_to_string(code)));
                 },
             }
             unsafe { vk_surface.assume_init() }
@@ -225,7 +230,7 @@ impl Gpu {
         match unsafe { ffi::vkGetPhysicalDeviceSurfaceSupportKHR(self.vk_physical_device,0,vk_surface,supported.as_mut_ptr()) } {
             ffi::VK_SUCCESS => { },
             code => {
-                return Err(format!("Gpu::create_surface: Surface not supported on physical device ({})",super::vk_code_to_string(code)));
+                return Err(format!("Gpu::create_surface: Surface not supported on physical device ({})",vk_code_to_string(code)));
             },
         }
         let supported = unsafe { supported.assume_init() };
@@ -233,20 +238,15 @@ impl Gpu {
             return Err("Gpu::create_surface: Surface not supported on physical device".to_string());
         }
 
-        let (vk_swapchain,vk_image_views) = self.build_swapchain_resources(vk_surface,r)?;
+        let (vk_swapchain,vk_image_views) = self.build_swapchain_resources(vk_surface,&r)?;
 
-        // create surface
-        let mut surface = Surface {
+        Ok(Surface {
             gpu: Rc::clone(&self),
             window,
             vk_surface,
             vk_swapchain,
             vk_image_views,
-        };
-
-        surface.set_rect(r)?;
-
-        Ok(surface)
+        })
     }
 
     pub fn create_command_buffer(self: &Rc<Self>) -> Result<CommandBuffer,String> {
@@ -263,8 +263,11 @@ impl Gpu {
             ffi::VK_SUCCESS => Ok(CommandBuffer {
                 gpu: Rc::clone(&self),
                 vk_command_buffer: unsafe { vk_command_buffer.assume_init() },
+                compute_pipeline: None,
+                pipeline_layout: None,
+                descriptor_set: None,
             }),
-            code => Err(format!("Gpu::create_command_buffer: unable to create command buffer ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Gpu::create_command_buffer: unable to create command buffer ({})",vk_code_to_string(code))),
         }
     }
 
@@ -295,7 +298,7 @@ impl Gpu {
                 compute_shader,
                 pipeline_layout,
             }),
-            code => Err(format!("Gpu::create_compute_pipeline: unable to create compute pipeline ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Gpu::create_compute_pipeline: unable to create compute pipeline ({})",vk_code_to_string(code))),
         }
     }
 
@@ -323,7 +326,7 @@ impl Gpu {
         let mut vk_descriptor_set_layout = MaybeUninit::uninit();
         let vk_descriptor_set_layout = match unsafe { ffi::vkCreateDescriptorSetLayout(self.vk_device,&info,null_mut(),vk_descriptor_set_layout.as_mut_ptr()) } {
             ffi::VK_SUCCESS => unsafe { vk_descriptor_set_layout.assume_init() },
-            code => return Err(format!("Gpu::create_pipeline_layout: unable to create descriptor set layout ({})",super::vk_code_to_string(code))),
+            code => return Err(format!("Gpu::create_pipeline_layout: unable to create descriptor set layout ({})",vk_code_to_string(code))),
         };
         let info = ffi::VkPipelineLayoutCreateInfo {
             sType: ffi::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -341,7 +344,7 @@ impl Gpu {
                 vk_pipeline_layout: unsafe { vk_pipeline_layout.assume_init() },
                 vk_descriptor_set_layout,
             }),
-            code => Err(format!("Gpu::create_pipeline_layout: nable to create pipeline layout ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Gpu::create_pipeline_layout: nable to create pipeline layout ({})",vk_code_to_string(code))),
         }
     }
 
@@ -361,7 +364,7 @@ impl Gpu {
         };
         match unsafe { ffi::vkQueueSubmit(self.vk_queue,1,&info,if let Some(fence) = signal_fence { fence.vk_fence } else { null_mut() }) } {
             ffi::VK_SUCCESS => Ok(()),
-            code => Err(format!("Gpu::submit_command_buffer: unable to submit command buffer to graphics queue ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Gpu::submit_command_buffer: unable to submit command buffer to graphics queue ({})",vk_code_to_string(code))),
         }
     }
 
@@ -380,7 +383,7 @@ impl Gpu {
                 gpu: Rc::clone(&self),
                 vk_shader_module: unsafe { vk_shader_module.assume_init() },
             }),
-            code => Err(format!("Gpu::create_compute_shader: unable to create compute shader ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Gpu::create_compute_shader: unable to create compute shader ({})",vk_code_to_string(code))),
         }
     }
 
@@ -397,21 +400,24 @@ impl Gpu {
                 gpu: Rc::clone(&self),
                 vk_fence: unsafe { vk_fence.assume_init() },
             }),
-            code => Err(format!("Gpu::create_fence: unable to create fence ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Gpu::create_fence: unable to create fence ({})",vk_code_to_string(code))),
         }
     }
 
     pub fn create_semaphore(self: &Rc<Self>) -> Result<Semaphore,String> {
 
+        /*
         let type_info = ffi::VkSemaphoreTypeCreateInfo {
             sType: ffi::VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
             pNext: null_mut(),
             semaphoreType: ffi::VK_SEMAPHORE_TYPE_TIMELINE,
             initialValue: 0,
         };
+        */
         let info = ffi::VkSemaphoreCreateInfo {
             sType: ffi::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            pNext: &type_info as *const ffi::VkSemaphoreTypeCreateInfo as *const c_void,
+            //pNext: &type_info as *const ffi::VkSemaphoreTypeCreateInfo as *const c_void,
+            pNext: null_mut(),
             flags: 0,
         };
         let mut vk_semaphore = MaybeUninit::uninit();
@@ -420,7 +426,7 @@ impl Gpu {
                 gpu: Rc::clone(&self),
                 vk_semaphore: unsafe { vk_semaphore.assume_init() },
             }),
-            code => Err(format!("Gpu::create_semaphore: unable to create semaphore ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Gpu::create_semaphore: unable to create semaphore ({})",vk_code_to_string(code))),
         }
     }
 }

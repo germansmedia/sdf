@@ -17,7 +17,7 @@ pub struct Surface {
 
 impl Surface {
 
-    pub fn set_rect(&mut self,r: Rect<i32>) -> Result<(),String> {
+    pub fn set_rect(&mut self,r: &Rect<i32>) -> Result<(),String> {
 
         if self.vk_image_views.len() > 0 {
             self.vk_image_views.iter().for_each(|vk_image_view| unsafe { ffi::vkDestroyImageView(self.gpu.vk_device,*vk_image_view,null_mut()) });
@@ -34,21 +34,20 @@ impl Surface {
         self.vk_image_views.len()
     }
 
-    pub fn acquire(&self) -> Result<usize,String> {
+    pub fn acquire(&self,ready_semaphore: Option<&Semaphore>,ready_fence: Option<&Fence>) -> Result<usize,String> {
         let mut index = 0u32;
         match unsafe {
             ffi::vkAcquireNextImageKHR(
                 self.gpu.vk_device,
                 self.vk_swapchain,
                 0xFFFFFFFFFFFFFFFF,
-                // TODO: these cannot both be null:
-                null_mut(),
-                null_mut(),
+                if let Some(semaphore) = ready_semaphore { semaphore.vk_semaphore } else { null_mut() },
+                if let Some(fence) = ready_fence { fence.vk_fence } else { null_mut() },
                 &mut index,
             )
         } {
             ffi::VK_SUCCESS => Ok(index as usize),
-            code => Err(format!("VulkanSurface::acquire: unable to acquire next image ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Surface::acquire: unable to acquire next image ({})",vk_code_to_string(code))),
         }
     }
 
@@ -66,7 +65,7 @@ impl Surface {
         };
         match unsafe { ffi::vkQueuePresentKHR(self.gpu.vk_queue,&info) } {
             ffi::VK_SUCCESS => Ok(()),
-            code => Err(format!("VulkanSurface::present: unable to present image ({})",super::vk_code_to_string(code))),
+            code => Err(format!("Surface::present: unable to present image ({})",vk_code_to_string(code))),
         }
     }
 }

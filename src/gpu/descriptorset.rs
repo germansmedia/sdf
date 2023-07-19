@@ -49,6 +49,7 @@ impl DescriptorSet {
 impl Drop for DescriptorSet {
 
     fn drop(&mut self) {
-        // TODO
+        println!("DESTROYED descriptor set {:?}",self.vk_descriptor_set);
+        unsafe { ffi::vkFreeDescriptorSets(self.gpu.vk_device,self.gpu.vk_descriptor_pool,1,&self.vk_descriptor_set) };
     }
 }
