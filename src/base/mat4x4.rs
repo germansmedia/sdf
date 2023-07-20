@@ -33,6 +33,36 @@ macro_rules! mat4x4_impl {
     ($($t:ty)+) => {
         $(
             impl Mat4x4<$t> {
+
+                pub fn perspective_projection(l: $t,r: $t,t: $t,b: $t,n: $t,f: $t) -> Mat4x4<$t> {
+                    Mat4x4 {
+                        x: Vec4 {
+                            x: (n + n) / (r - l),
+                            y: <$t>::ZERO,
+                            z: <$t>::ZERO,
+                            w: <$t>::ZERO,
+                        },
+                        y: Vec4 {
+                            x: <$t>::ZERO,
+                            y: (n + n) / (t - b),
+                            z: <$t>::ZERO,
+                            w: <$t>::ZERO,
+                        },
+                        z: Vec4 {
+                            x: (r + l) / (r - l),
+                            y: (t + b) / (t - b),
+                            z: -(f + n) / (f - n),
+                            w: -<$t>::ONE,
+                        },
+                        w: Vec4 {
+                            x: <$t>::ZERO,
+                            y: <$t>::ZERO,
+                            z: -f * (n + n) / (f - n),
+                            w: <$t>::ZERO,
+                        }
+                    }
+                }
+
                 pub fn from_mv(m: Mat3x3<$t>,v: Vec3<$t>) -> Mat4x4<$t> {
                     Mat4x4 {
                         x: Vec4 {

@@ -56,13 +56,13 @@ fn random_color(start: Instant) -> Vec4<f32> {
     let g = ((now & 255) as f32) / 255.0;
     let now = (Instant::now() - start).as_nanos();
     let b = ((now & 255) as f32) / 255.0;
-    println!("{},{},{}",r,g,b);
     Vec4 { x: r,y: g,z: b,w: 1.0, }
     //Vec4 { x: 0.0,y: 1.0,z: 0.5,w: 1.0, }
 }
 
 struct State {
-    mvp: Mat4x4<f32>,
+    eye: Vec4<f32>, // vector from eye to top-left corner, in pixels
+    world: Mat4x4<f32>, // world transformation
     background_color: Vec4<f32>,
 }
 
@@ -95,7 +95,8 @@ fn main() -> Result<(),String> {
     let random_seed = Instant::now();
 
     let mut state = State {
-        mvp: Mat4x4::ONE,
+        eye: Vec4 { x: -size.x as f32, y: -size.y as f32, z: 2000.0,w: 1.0, },
+        world: Mat4x4::ONE,
         background_color: random_color(random_seed),
     };
 
