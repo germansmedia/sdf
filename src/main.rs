@@ -95,7 +95,7 @@ fn main() -> Result<(),String> {
     let random_seed = Instant::now();
 
     let mut state = State {
-        eye: Vec4 { x: -size.x as f32, y: -size.y as f32, z: 2000.0,w: 1.0, },
+        eye: Vec4 { x: 0.5 * size.x as f32, y: 0.5 * size.y as f32, z: -2000.0,w: 1.0, },
         world: Mat4x4::ONE,
         background_color: random_color(random_seed),
     };
