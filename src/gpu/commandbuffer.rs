@@ -4,8 +4,54 @@ use {
         result::Result,
         rc::Rc,
         ptr::null_mut,
+        mem::MaybeUninit,
     },
 };
+
+impl Gpu {
+
+    pub fn create_command_buffer(self: &Rc<Self>) -> Result<CommandBuffer,String> {
+
+        let info = ffi::VkCommandBufferAllocateInfo {
+            sType: ffi::VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            pNext: null_mut(),
+            commandPool: self.vk_command_pool,
+            level: ffi::VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            commandBufferCount: 1,
+        };
+        let mut vk_command_buffer = MaybeUninit::uninit();
+        match unsafe { ffi::vkAllocateCommandBuffers(self.vk_device,&info,vk_command_buffer.as_mut_ptr()) } {
+            ffi::VK_SUCCESS => Ok(CommandBuffer {
+                gpu: Rc::clone(&self),
+                vk_command_buffer: unsafe { vk_command_buffer.assume_init() },
+                compute_pipeline: None,
+                pipeline_layout: None,
+                descriptor_set: None,
+            }),
+            code => Err(format!("Gpu::create_command_buffer: unable to create command buffer ({})",vk_code_to_string(code))),
+        }
+    }
+
+    pub fn submit_command_buffer(&self,command_buffer: &CommandBuffer,wait_semaphore: Option<&Semaphore>,signal_semaphore: Option<&Semaphore>,signal_fence: Option<&Fence>) -> Result<(),String> {
+
+        let wait_stage = ffi::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        let info = ffi::VkSubmitInfo {
+            sType: ffi::VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            pNext: null_mut(),
+            waitSemaphoreCount: if let Some(_) = wait_semaphore { 1 } else { 0 },
+            pWaitSemaphores: if let Some(semaphore) = wait_semaphore { &semaphore.vk_semaphore } else { null_mut() },
+            pWaitDstStageMask: &wait_stage,
+            commandBufferCount: 1,
+            pCommandBuffers: &command_buffer.vk_command_buffer,
+            signalSemaphoreCount: if let Some(_) = signal_semaphore { 1 } else { 0 },
+            pSignalSemaphores: if let Some(semaphore) = signal_semaphore { &semaphore.vk_semaphore } else { null_mut() },
+        };
+        match unsafe { ffi::vkQueueSubmit(self.vk_queue,1,&info,if let Some(fence) = signal_fence { fence.vk_fence } else { null_mut() }) } {
+            ffi::VK_SUCCESS => Ok(()),
+            code => Err(format!("Gpu::submit_command_buffer: unable to submit command buffer to graphics queue ({})",vk_code_to_string(code))),
+        }
+    }
+}
 
 pub struct CommandBuffer {
     pub gpu: Rc<Gpu>,

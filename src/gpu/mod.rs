@@ -27,6 +27,9 @@ pub use pipelinelayout::*;
 mod computepipeline;
 pub use computepipeline::*;
 
+mod uniformbuffer;
+pub use uniformbuffer::*;
+
 pub(crate) fn vk_code_to_string(code: i32) -> &'static str {
     match code {
         ffi::VK_SUCCESS => "VK_SUCCESS",

@@ -6,13 +6,7 @@ use std::{
     time::Instant,
 };
 
-mod ffi {
-#![allow(non_camel_case_types)]
-#![allow(non_upper_case_globals)]
-#![allow(non_snake_case)]
-//#![allow(dead_code)]
-include!("ffi-reduced.rs");
-}
+mod ffi;
 
 mod base;
 use base::*;
@@ -28,6 +22,7 @@ fn rebuild_command_buffers(
     command_buffers: &mut Vec<CommandBuffer>,
     compute_pipeline: &Rc<ComputePipeline>,
     pipeline_layout: &Rc<PipelineLayout>,
+    uniform_buffer: &Rc<UniformBuffer>,
     size: Vec2<i32>,
 ) -> Result<(),String> {
 
@@ -35,7 +30,8 @@ fn rebuild_command_buffers(
     let mut descriptor_sets: Vec<Rc<DescriptorSet>> = Vec::new();
     for i in 0..command_buffers.len() {
         let descriptor_set = Rc::new(pipeline_layout.create_descriptor_set()?);
-        descriptor_set.update(0,Descriptor::StorageImage(surface.vk_image_views[i] as *mut u8));
+        descriptor_set.update(0,Descriptor::UniformBuffer(uniform_buffer.vk_buffer as *mut u8,uniform_buffer.size as u64));
+        descriptor_set.update(1,Descriptor::StorageImage(surface.vk_image_views[i] as *mut u8));
         descriptor_sets.push(descriptor_set);
     }
 
@@ -51,6 +47,23 @@ fn rebuild_command_buffers(
     }
 
     Ok(())
+}
+
+fn random_color(start: Instant) -> Vec4<f32> {
+    let now = (Instant::now() - start).as_nanos();
+    let r = ((now & 255) as f32) / 255.0;
+    let now = (Instant::now() - start).as_nanos();
+    let g = ((now & 255) as f32) / 255.0;
+    let now = (Instant::now() - start).as_nanos();
+    let b = ((now & 255) as f32) / 255.0;
+    println!("{},{},{}",r,g,b);
+    Vec4 { x: r,y: g,z: b,w: 1.0, }
+    //Vec4 { x: 0.0,y: 1.0,z: 0.5,w: 1.0, }
+}
+
+struct State {
+    mvp: Mat4x4<f32>,
+    background_color: Vec4<f32>,
 }
 
 fn main() -> Result<(),String> {
@@ -70,7 +83,7 @@ fn main() -> Result<(),String> {
         command_buffers.push(gpu.create_command_buffer()?);
     }
 
-    let pipeline_layout = Rc::new(gpu.create_pipeline_layout(&[DescriptorBinding::StorageImage])?);
+    let pipeline_layout = Rc::new(gpu.create_pipeline_layout(&[DescriptorBinding::UniformBuffer,DescriptorBinding::StorageImage])?);
 
     let mut f = File::open("shaders/engine.spirv").expect("unable to open compute shader");
     let mut code = Vec::<u8>::new();
@@ -79,17 +92,28 @@ fn main() -> Result<(),String> {
 
     let compute_pipeline = Rc::new(gpu.create_compute_pipeline(Rc::clone(&pipeline_layout),Rc::clone(&compute_shader))?);
 
-    rebuild_command_buffers(&surface,&mut command_buffers,&compute_pipeline,&pipeline_layout,size)?;
+    let random_seed = Instant::now();
 
+    let mut state = State {
+        mvp: Mat4x4::ONE,
+        background_color: random_color(random_seed),
+    };
+
+    let uniform_buffer = Rc::new(gpu.create_uniform_buffer(&state)?);
+
+    rebuild_command_buffers(&surface,&mut command_buffers,&compute_pipeline,&pipeline_layout,&uniform_buffer,size)?;
+    
     let acquired_semaphore = Rc::new(gpu.create_semaphore()?);
     let acquired_fence = Rc::new(gpu.create_fence()?);
     let submitted_fence = Rc::new(gpu.create_fence()?);
     let rendered_semaphore = Rc::new(gpu.create_semaphore()?);
 
+    let mut source_color = random_color(random_seed);
+    let mut target_color = random_color(random_seed);
+    let mut blend_tick = 100;
+
     let mut close_clicked = false;
     while !close_clicked {
-
-        let t_start = Instant::now();
 
         let mut configure_event: Option<Rect<i32>> = None;
 
@@ -107,28 +131,29 @@ fn main() -> Result<(),String> {
 
         if let Some(r) = configure_event {
             surface.set_rect(&r)?;
-            rebuild_command_buffers(&surface,&mut command_buffers,&compute_pipeline,&pipeline_layout,r.s)?;
+            rebuild_command_buffers(&surface,&mut command_buffers,&compute_pipeline,&pipeline_layout,&uniform_buffer,r.s)?;
         }
 
-        let t_housekeeping = Instant::now() - t_start;
+        // Saul Goodman's Magic Animations
+        blend_tick -= 1;
+        if blend_tick <= 0 {
+            source_color = target_color;
+            target_color = random_color(random_seed);
+            blend_tick = 100;
+        }
+        let f = (blend_tick as f32) * 0.01;
+        state.background_color = f * source_color + (1.0 - f) * target_color;
+        uniform_buffer.update(&state);
 
         acquired_fence.reset()?;
         let i = surface.acquire(Some(&acquired_semaphore),Some(&acquired_fence))?;
         acquired_fence.wait()?;
 
-        let t_acquired = Instant::now() - t_start;
-
         submitted_fence.reset()?;
         gpu.submit_command_buffer(&command_buffers[i],Some(&acquired_semaphore),Some(&rendered_semaphore),Some(&submitted_fence))?;
         submitted_fence.wait()?;
 
-        let t_submitted = Instant::now() - t_start;
-
         if let Err(_) = surface.present(i,Some(&rendered_semaphore)) { }
-
-        let t_presented = Instant::now() - t_start;
-
-        println!("hk:{:9} acq:{:9} subm:{:9} pres:{:9}",t_housekeeping.as_micros(),(t_acquired - t_housekeeping).as_micros(),(t_submitted - t_acquired).as_micros(),(t_presented - t_submitted).as_micros());
     }
 
     Ok(())

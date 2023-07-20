@@ -4,6 +4,7 @@ use {
         result::Result,
         rc::Rc,
         ptr::null_mut,
+        mem::MaybeUninit,
     },
 };
 
@@ -13,6 +14,54 @@ pub struct Surface {
     pub vk_surface: ffi::VkSurfaceKHR,
     pub vk_swapchain: ffi::VkSwapchainKHR,
     pub vk_image_views: Vec<ffi::VkImageView>,
+}
+
+impl Gpu {
+
+    pub fn create_surface(self: &Rc<Self>,window: Rc<Window>,r: Rect<i32>) -> Result<Surface,String> {
+
+        // create surface for this window
+        let vk_surface = {
+            let info = ffi::VkXcbSurfaceCreateInfoKHR {
+                sType: ffi::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+                pNext: null_mut(),
+                flags: 0,
+                connection: window.system.xcb_connection,
+                window: window.xcb_window,
+            };
+            let mut vk_surface = MaybeUninit::<ffi::VkSurfaceKHR>::uninit();
+            match unsafe { ffi::vkCreateXcbSurfaceKHR(self.vk_instance,&info,null_mut(),vk_surface.as_mut_ptr()) } {
+                ffi::VK_SUCCESS => { },
+                code => {
+                    return Err(format!("Gpu::create_surface: Unable to create Vulkan XCB surface ({})",vk_code_to_string(code)));
+                },
+            }
+            unsafe { vk_surface.assume_init() }
+        };
+
+        // verify the surface is supported for the current physical device
+        let mut supported = MaybeUninit::<ffi::VkBool32>::uninit();
+        match unsafe { ffi::vkGetPhysicalDeviceSurfaceSupportKHR(self.vk_physical_device,0,vk_surface,supported.as_mut_ptr()) } {
+            ffi::VK_SUCCESS => { },
+            code => {
+                return Err(format!("Gpu::create_surface: Surface not supported on physical device ({})",vk_code_to_string(code)));
+            },
+        }
+        let supported = unsafe { supported.assume_init() };
+        if supported == ffi::VK_FALSE {
+            return Err("Gpu::create_surface: Surface not supported on physical device".to_string());
+        }
+
+        let (vk_swapchain,vk_image_views) = self.build_swapchain_resources(vk_surface,&r)?;
+
+        Ok(Surface {
+            gpu: Rc::clone(&self),
+            window,
+            vk_surface,
+            vk_swapchain,
+            vk_image_views,
+        })
+    }
 }
 
 impl Surface {
