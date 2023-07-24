@@ -1,7 +1,5 @@
 # TODO
 
-- lights
-- shadows
-- soft shadows
-- fractal
-
+- improve loader for lighting
+- extract mandelbulb formula
+- implement mandelbulb formula

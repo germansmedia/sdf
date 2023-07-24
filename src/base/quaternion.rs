@@ -41,6 +41,23 @@ macro_rules! quaternion_impl {
     ($($t:ty)+) => {
         $(
             impl Quaternion<$t> {
+
+                pub fn from_euler(e: Vec3<$t>) -> Self {
+                    let he = 0.5 * e;
+                    let cr = he.x.cos();
+                    let sr = he.x.sin();
+                    let cp = he.y.cos();
+                    let sp = he.y.sin();
+                    let cy = he.z.cos();
+                    let sy = he.z.sin();
+                    Quaternion {
+                        r: cr * cp * cy + sr * sp * sy,
+                        i: sr * cp * cy - cr * sp * sy,
+                        j: cr * sp * cy + sr * cp * sy,
+                        k: cr * cp * sy - sr * sp * cy,
+                    }
+                }
+
                 pub fn conj(&self) -> Self {
                     Quaternion {
                         r: self.r,

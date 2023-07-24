@@ -1,7 +1,10 @@
 use std::{
     rc::Rc,
     result::Result,
-    fs::File,
+    fs::{
+        File,
+        read_to_string,
+    },
     io::Read,
     time::Instant,
 };
@@ -16,6 +19,9 @@ use system::*;
 
 mod gpu;
 use gpu::*;
+
+mod mb3d;
+use mb3d::*;
 
 fn rebuild_command_buffers(
     surface: &Surface,
@@ -68,6 +74,16 @@ struct State {
 
 fn main() -> Result<(),String> {
 
+    let mb3d_path = "mb3d/mandelbulb_init.txt";
+    let shader_path = "shaders/engine.spirv";
+
+    let encoded = match read_to_string(mb3d_path) {
+        Ok(data) => data,
+        Err(error) => { return Err(error.to_string()) },
+    };
+    let mb3d = decode_mb3d(&encoded)?;
+    dump_mb3d(&mb3d);
+
     let size = Vec2 { x: 1280i32,y: 768i32, };
     let r = Rect { o: Vec2{ x: 0i32,y: 0i32, },s: size, };
 
@@ -85,7 +101,7 @@ fn main() -> Result<(),String> {
 
     let pipeline_layout = Rc::new(gpu.create_pipeline_layout(&[DescriptorBinding::UniformBuffer,DescriptorBinding::StorageImage])?);
 
-    let mut f = File::open("shaders/engine.spirv").expect("unable to open compute shader");
+    let mut f = File::open(shader_path).expect("unable to open compute shader");
     let mut code = Vec::<u8>::new();
     f.read_to_end(&mut code).expect("unable to read compute shader");
     let compute_shader = Rc::new(gpu.create_compute_shader(&code)?);
