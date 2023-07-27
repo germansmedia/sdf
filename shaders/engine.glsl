@@ -15,94 +15,152 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #define VEC2 vec2
 #define VEC3 vec3
 
-// step size (initial for SDF)
-#define STEP_SIZE 0.01
-
-// max number of steps
-#define MAX_STEPS 1000
-
-// when to stop searching
-#define CLOSEST 0.0001
+// guardings
+#define MAX_STEPS 100
+#define SHADOW_STEPS 100
+#define CLOSEST_DISTANCE 0.002
 #define MAX_DISTANCE 10.0
 
-// WHEN YOU CAN'T CALCULATE THE SDF:
+// bulb parameters
+#define POWER 8
+#define MAX_ITERATION 15
+#define ESCAPE_DISTANCE 1.5
 
-#define MAX_ITERATION 100
-#define ESCAPE_DISTANCE 2.0
+// scene
+#define BULB_POS VEC3(0.3,-0.3,4.0)
+#define BULB_COLOR VEC3(0.6,0.3,0.1)
+#define LIGHT1_POS VEC3(-5,-7,-10)
+#define LIGHT1_COLOR VEC3(1.0,0.9,0.7)
+#define LIGHT2_POS VEC3(5,-4,-3)
+#define LIGHT2_COLOR VEC3(0.3,0.1,0.5)
 
-int calc_bulb(VEC3 p,VEC3 center) {
-    VEC3 v = p - center;
-    for(int i = 1; i <= MAX_ITERATION; i++) {
-        FLOAT r = sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-        FLOAT phi = atan(v.y,v.x);
-        FLOAT theta = acos(v.z / r);
-        FLOAT r2 = r * r;
-        FLOAT r4 = r2 * r2;
-        FLOAT r8 = r4 * r4;
-        FLOAT s8t = sin(8 * theta);
-        FLOAT nx = s8t * cos(8 * phi);
-        FLOAT ny = s8t * sin(8 * phi);
-        FLOAT nz = cos(8 * theta);
-        v = r8 * VEC3(nx,ny,nz) + p - center;
-        if(length(v) > ESCAPE_DISTANCE) {
-            return i;
-        }
-    }
-    return 0;
+// rendering
+#define BACKGROUND_COLOR VEC3(0.1,0.2,0.3)
+#define AMBIENT_COLOR VEC3(0.5,0.5,0.5)
+#define SHADOW_OFFSET 0.01
+#define SHADOW_SHARPNESS 40.0
+
+VEC3 rotate_x(VEC3 p,FLOAT a) {
+    FLOAT s = sin(a);
+    FLOAT c = cos(a);
+    return VEC3(p.x,c * p.y + s * p.z,-s * p.y + c * p.z);
 }
 
-vec4 no_sdf(VEC3 start,VEC3 dp) {
-    VEC3 p = start;
-    FLOAT depth = 1.0;
-    for (int i = 0; i < MAX_STEPS; i++) {
-        p += STEP_SIZE * dp;
-        depth += STEP_SIZE;
-        if (depth > MAX_DISTANCE) {
-            return vec4(0.1,0.1,0.1,1.0);
-        }
-        if (calc_bulb(p,VEC3(0.0,1.0,5.0)) == 0) {
-            return fract(10.0 * depth) * vec4(1.0,0.5,0.1,1.0);
-        }
-    }
-    return vec4(0.1,0.1,0.1,1.0);
+VEC3 rotate_y(VEC3 p,FLOAT a) {
+    FLOAT s = sin(a);
+    FLOAT c = cos(a);
+    return VEC3(c * p.x + s * p.z,p.y,-s * p.x + c * p.z);
 }
 
-// WHEN YOU CAN CALCULATE THE SDF
+VEC3 rotate_z(VEC3 p,FLOAT a) {
+    FLOAT s = sin(a);
+    FLOAT c = cos(a);
+    return VEC3(c * p.x + s * p.y,-s * p.x + c * p.y,p.z);
+}
 
 FLOAT sphere(VEC3 p,VEC3 center,FLOAT radius) {
     return length(center - p) - radius;
 }
 
-FLOAT calc_sdf(VEC3 p) {
-    return sphere(p,VEC3(0.0,1.0,5.0),1.0);
+FLOAT bulb(VEC3 p,VEC3 center) {
+    VEC3 v = p - center;
+    v = rotate_x(v,-0.7);
+    if(length(v) > 1.5) return length(v) - 1.2;
+    FLOAT dr = 1.0;
+    FLOAT r = 0.0;
+    for (int i = 0; i < MAX_ITERATION; i++) {
+        r = length(v);
+        if (r > ESCAPE_DISTANCE) break;
+        dr = pow(r,POWER - 1.0) * POWER * dr + 1.0;
+        FLOAT theta = acos(v.z / r) * POWER;
+        FLOAT phi = atan(v.y,v.x) * POWER;
+        FLOAT sinTheta = sin(theta);
+        v = pow(r,POWER) * VEC3(sinTheta * cos(phi),sinTheta * sin(phi),cos(theta)) + p - center;
+    }
+    return 0.5 * log(r) * r / dr;
 }
 
-VEC3 normal(VEC3 p) {
-    VEC2 e = VEC2(1.0,-1.0) * 0.0005;
-    return normalize(
-        e.xyy * calc_sdf(p + e.xyy) +
-        e.yyx * calc_sdf(p + e.yyx) +
-        e.yxy * calc_sdf(p + e.yxy) +
-        e.xxx * calc_sdf(p + e.xxx)
-    );
+//FLOAT sdf(VEC3 p) {
+//    return sphere(p,VEC3(0.0,1.0,6.0),1.0);
+//}
+
+FLOAT sdf(VEC3 p) {
+    return bulb(p,BULB_POS);
 }
 
-vec4 sdf(VEC3 p,VEC3 dp) {
-    FLOAT depth = 1.0;
-    FLOAT d = STEP_SIZE;
-    for (int i = 0; i < MAX_STEPS; i++) {
+VEC3 sdf_normal(VEC3 p) {
+    FLOAT d = sdf(p);
+    VEC3 dx = VEC3(d,0,0);
+    VEC3 dy = VEC3(0,d,0);
+    VEC3 dz = VEC3(0,0,d);
+    return normalize(VEC3(
+        sdf(p + dx),
+        sdf(p + dy),
+        sdf(p + dz)
+    ) - VEC3(d,d,d));
+}
+
+VEC2 phong(VEC3 p,VEC3 light_pos) {
+    VEC3 l = light_pos - p;
+    VEC3 dp = normalize(l);
+    FLOAT distance_to_light = length(l);
+    VEC3 n = sdf_normal(p);
+    FLOAT diff = dot(n,dp);
+    if (diff <= 0) {
+        return VEC2(0,0);
+    }
+    p += SHADOW_OFFSET * dp;
+    FLOAT total_distance = 0.0;
+    FLOAT closest_distance = MAX_DISTANCE;
+    int steps;
+    for (steps = 0; steps < SHADOW_STEPS; steps++) {
+        FLOAT d = sdf(p);
         p += d * dp;
-        d = calc_sdf(p);
-        depth += d;
-        if (depth > MAX_DISTANCE) {
-            return vec4(0.1,0.1,0.1,1.0);
+        total_distance += d;
+        if (total_distance > MAX_DISTANCE) {
+            break;
         }
-        if (d < CLOSEST) {
-            vec3 n = normal(p);
-            return vec4(0.5 + 0.5 * n.x,0.5 + 0.5 * n.y,0.5 + 0.5 * n.z,1.0);
+        distance_to_light -= d;
+        if (distance_to_light <= 0.0) {
+            break;
+        }
+        if (d < 0.5 * CLOSEST_DISTANCE) {
+            return VEC2(0,0);
+        }
+        closest_distance = min(closest_distance,d / total_distance);
+    }
+    FLOAT spec = pow(dot(normalize(dot(n,l) * n - normalize(l)),dp),128.0);
+    return min(SHADOW_SHARPNESS * closest_distance,1) * VEC2(diff,spec);
+}
+
+vec4 march(VEC3 p,VEC3 dp) {
+    FLOAT distance = 0.0;
+    int steps;
+    for (steps = 0; steps < MAX_STEPS; steps++) {
+        FLOAT d = sdf(p);
+        p += d * dp;
+        distance += d;
+        if (distance > MAX_DISTANCE) {
+            return vec4(BACKGROUND_COLOR,1.0);
+        }
+        if (d < CLOSEST_DISTANCE) {
+            break;
         }
     }
-    return vec4(0.1,0.1,0.1,1.0);
+
+    // ambient occlusion
+    FLOAT ao = 1 - float(steps) / float(MAX_STEPS);
+    VEC3 pixel = ao * BULB_COLOR;
+
+    // lighting
+    VEC2 ph = phong(p,LIGHT1_POS);
+    pixel = (AMBIENT_COLOR + ph.x * LIGHT1_COLOR) * pixel + ph.y * LIGHT1_COLOR;
+
+    // fog
+    //FLOAT f = distance / MAX_DISTANCE;
+    //pixel = (1 - f) * pixel + f * BACKGROUND_COLOR;
+
+    return vec4(pixel,1);
 }
 
 // MAIN
@@ -119,8 +177,7 @@ void main() {
     VEC3 dp = normalize(VEC3(FLOAT(coord.x),FLOAT(coord.y),0.0) - state_eye.xyz);
 
     // DO IT!
-    //vec4 color = sdf(p,dp);
-    vec4 color = no_sdf(p,dp);
+    vec4 color = march(p,dp);
 
     imageStore(out_frame,coord,color);
 }

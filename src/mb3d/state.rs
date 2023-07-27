@@ -3,6 +3,9 @@ use {
     std::convert::TryInto,
 };
 
+// DE = distance estimation?
+// MC = monte carlo?
+
 pub enum Bokeh {
     Todo(u8),
 }
@@ -11,8 +14,6 @@ pub enum Julia {
     Disabled,
     Julia(Vec4<f64>),
 }
-
-
 
 pub enum SofterShadows {
     Disabled,
