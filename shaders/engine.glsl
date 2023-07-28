@@ -91,6 +91,7 @@ FLOAT bulb(VEC3 p,VEC3 center) {
         v = pow(r,POWER) * VEC3(sinTheta * cos(phi),sinTheta * sin(phi),cos(theta)) + p - center;
     }
     return 0.5 * log(r) * r / dr;
+    //return 0.5 * log(r) * r;
 }
 
 // BenesiPine1
