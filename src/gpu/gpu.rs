@@ -175,7 +175,7 @@ impl System {
                 shaderStorageImageArrayDynamicIndexing: 0,
                 shaderClipDistance: 0,
                 shaderCullDistance: 0,
-                shaderFloat64: 0,
+                shaderFloat64: 1,
                 shaderInt64: 0,
                 shaderInt16: 0,
                 shaderResourceResidency: 0,
@@ -233,7 +233,7 @@ impl System {
             sType: ffi::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             pNext: null_mut(),
             flags: ffi::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            maxSets: 5u32,
+            maxSets: 20u32,
             poolSizeCount: 1,
             pPoolSizes: &ffi::VkDescriptorPoolSize {
                 type_: ffi::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,

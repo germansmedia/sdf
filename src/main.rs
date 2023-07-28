@@ -84,7 +84,7 @@ fn main() -> Result<(),String> {
     let mb3d = decode_mb3d(&encoded)?;
     dump_mb3d(&mb3d);
 
-    let size = Vec2 { x: 1280i32,y: 768i32, };
+    let size = Vec2 { x: 800i32,y: 600i32, };
     let r = Rect { o: Vec2{ x: 0i32,y: 0i32, },s: size, };
 
     let system = Rc::new(System::open()?);

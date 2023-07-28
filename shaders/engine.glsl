@@ -100,7 +100,7 @@ VEC3 sdf_normal(VEC3 p) {
     ) - VEC3(d,d,d));
 }
 
-VEC2 phong(VEC3 p,VEC3 light_pos) {
+vec2 phong(VEC3 p,VEC3 light_pos) {
     VEC3 l = light_pos - p;
     VEC3 dp = normalize(l);
     FLOAT distance_to_light = length(l);
@@ -149,11 +149,11 @@ vec4 march(VEC3 p,VEC3 dp) {
     }
 
     // ambient occlusion
-    FLOAT ao = 1 - float(steps) / float(MAX_STEPS);
-    VEC3 pixel = ao * BULB_COLOR;
+    float ao = 1 - float(steps) / float(MAX_STEPS);
+    vec3 pixel = ao * BULB_COLOR;
 
     // lighting
-    VEC2 ph = phong(p,LIGHT1_POS);
+    vec2 ph = phong(p,LIGHT1_POS);
     pixel = (AMBIENT_COLOR + ph.x * LIGHT1_COLOR) * pixel + ph.y * LIGHT1_COLOR;
 
     // fog
