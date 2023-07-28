@@ -19,15 +19,25 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #define MAX_STEPS 100
 #define SHADOW_STEPS 100
 #define CLOSEST_DISTANCE 0.002
-#define MAX_DISTANCE 10.0
+#define MAX_DISTANCE 100.0
+
+// iteration parameters
+#define MAX_ITERATION 30
+#define ESCAPE_DISTANCE 4.0
 
 // bulb parameters
 #define POWER 8
-#define MAX_ITERATION 15
-#define ESCAPE_DISTANCE 1.5
+
+// Benesi parameters
+#define STT 0.816496580927726
+#define SOT 0.5773502691896258
+#define SOH 0.7071067811865475
+#define BENESI_SCALE 2.0
+#define BENESI_OFFSET 2.0
 
 // scene
-#define BULB_POS VEC3(0.3,-0.3,4.0)
+#define BULB_POS VEC3(0.0,0.0,4.0)
+#define BENESI_POS VEC3(0.0,0.0,8.0)
 #define BULB_COLOR VEC3(0.6,0.3,0.1)
 #define LIGHT1_POS VEC3(-5,-7,-10)
 #define LIGHT1_COLOR VEC3(1.0,0.9,0.7)
@@ -62,9 +72,12 @@ FLOAT sphere(VEC3 p,VEC3 center,FLOAT radius) {
     return length(center - p) - radius;
 }
 
+
+// MandelBulb
+
 FLOAT bulb(VEC3 p,VEC3 center) {
     VEC3 v = p - center;
-    v = rotate_x(v,-0.7);
+    //v = rotate_x(v,-0.7);
     if(length(v) > 1.5) return length(v) - 1.2;
     FLOAT dr = 1.0;
     FLOAT r = 0.0;
@@ -80,12 +93,43 @@ FLOAT bulb(VEC3 p,VEC3 center) {
     return 0.5 * log(r) * r / dr;
 }
 
+// BenesiPine1
+
+FLOAT benesi(VEC3 p,VEC3 center) {
+    VEC3 v = p - center;
+    FLOAT r = 0.0;
+    for (int i = 0; i < MAX_ITERATION; i++) {
+        r = length(v);
+        if (r > ESCAPE_DISTANCE) break;
+        FLOAT tx = (v.x * STT - v.z * SOT) * SOH;
+        FLOAT z = abs(v.x * SOT + v.z * STT);
+        FLOAT x = abs(tx - v.y * SOH);
+        FLOAT y = abs(tx + v.y * SOH);
+        tx = x * SOH + y * SOH;
+        y = -x * SOH + y * SOH;
+        x = tx * STT + z * SOT;
+        z = -tx * SOT + z * STT;
+        x = BENESI_SCALE * x + BENESI_OFFSET;
+        y = BENESI_SCALE * y;
+        z = BENESI_SCALE * z;
+        FLOAT xt = x * x;
+        FLOAT yt = y * y;
+        FLOAT zt = z * z;
+        FLOAT t = 2 * x / sqrt(yt + zt);
+        v.x = xt - yt - zt + p.x - center.x;
+        v.z = t * (yt - zt) + p.y - center.y;
+        v.y = 2 * t * y * z + p.z - center.z;
+    }
+    return 0.5 * log(r) * r;  // dr = 1, which might work?
+}
+
 //FLOAT sdf(VEC3 p) {
 //    return sphere(p,VEC3(0.0,1.0,6.0),1.0);
 //}
 
 FLOAT sdf(VEC3 p) {
     return bulb(p,BULB_POS);
+    //return benesi(p,BENESI_POS);
 }
 
 VEC3 sdf_normal(VEC3 p) {
