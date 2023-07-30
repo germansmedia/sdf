@@ -19,11 +19,11 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #define MAX_STEPS 100
 #define SHADOW_STEPS 100
 #define CLOSEST_DISTANCE 0.002
-#define MAX_DISTANCE 100.0
+#define MAX_DISTANCE 10.0
 
 // iteration parameters
-#define MAX_ITERATION 30
-#define ESCAPE_DISTANCE 4.0
+#define MAX_ITERATION 20
+#define ESCAPE_DISTANCE 2.0
 
 // bulb parameters
 #define POWER 8
@@ -35,9 +35,13 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #define BENESI_SCALE 2.0
 #define BENESI_OFFSET 2.0
 
+// CosinePow2 parameters
+#define Z_MULTIPLIER 1.0
+
 // scene
 #define BULB_POS VEC3(0.0,0.0,4.0)
-#define BENESI_POS VEC3(0.0,0.0,8.0)
+#define BENESI_POS VEC3(0.0,0.0,4.0)
+#define COSINEPOW2_POS VEC3(0.0,0.0,4.0)
 #define BULB_COLOR VEC3(0.6,0.3,0.1)
 #define LIGHT1_POS VEC3(-5,-7,-10)
 #define LIGHT1_COLOR VEC3(1.0,0.9,0.7)
@@ -77,14 +81,14 @@ FLOAT sphere(VEC3 p,VEC3 center,FLOAT radius) {
 
 FLOAT bulb(VEC3 p,VEC3 center) {
     VEC3 v = p - center;
-    //v = rotate_x(v,-0.7);
+    v.z = -v.z;
     if(length(v) > 1.5) return length(v) - 1.2;
     FLOAT dr = 1.0;
     FLOAT r = 0.0;
     for (int i = 0; i < MAX_ITERATION; i++) {
         r = length(v);
         if (r > ESCAPE_DISTANCE) break;
-        dr = pow(r,POWER - 1.0) * POWER * dr + 1.0;
+        dr = POWER * pow(r,POWER - 1.0) * dr + 1.0;
         FLOAT theta = acos(v.z / r) * POWER;
         FLOAT phi = atan(v.y,v.x) * POWER;
         FLOAT sinTheta = sin(theta);
@@ -98,7 +102,7 @@ FLOAT bulb(VEC3 p,VEC3 center) {
 
 FLOAT benesi(VEC3 p,VEC3 center) {
     VEC3 v = p - center;
-    FLOAT r = 0.0;
+    FLOAT r = v.x * v.x + v.y * v.y + v.z * v.z;
     for (int i = 0; i < MAX_ITERATION; i++) {
         r = length(v);
         if (r > ESCAPE_DISTANCE) break;
@@ -117,11 +121,31 @@ FLOAT benesi(VEC3 p,VEC3 center) {
         FLOAT yt = y * y;
         FLOAT zt = z * z;
         FLOAT t = 2 * x / sqrt(yt + zt);
-        v.x = xt - yt - zt + p.x - center.x;
-        v.z = t * (yt - zt) + p.y - center.y;
-        v.y = 2 * t * y * z + p.z - center.z;
+        v = VEC3(
+            xt - yt - zt,
+            t * (yt - zt),
+            2 * t * y * z
+        ) + p - center;
     }
-    return 0.5 * log(r) * r;  // dr = 1, which might work?
+    return 0.5 * log(r) * r;  // would this work?
+}
+
+// CosinePow2
+
+FLOAT cosine_pow2(VEC3 p,VEC3 center) {
+    VEC3 v = p - center;
+    FLOAT r = v.x * v.x + v.y * v.y + v.z * v.z;
+    for (int i = 0; i < MAX_ITERATION; i++) {
+        r = length(v);
+        if (r > ESCAPE_DISTANCE) break;
+        FLOAT q = 2 * v.z / sqrt(v.x * v.x + v.y * v.y);
+        v = VEC3(
+            (v.y * v.y - v.x * v.x) * q,
+            2 * v.x * v.y * q,
+            (v.z * v.z - v.x * v.x - v.y * v.y) * Z_MULTIPLIER
+        ) + p - center;
+    }
+    return 0.5 * log(r) * r;  // would this work?
 }
 
 //FLOAT sdf(VEC3 p) {
@@ -131,6 +155,7 @@ FLOAT benesi(VEC3 p,VEC3 center) {
 FLOAT sdf(VEC3 p) {
     return bulb(p,BULB_POS);
     //return benesi(p,BENESI_POS);
+    //return cosine_pow2(p,COSINEPOW2_POS);
 }
 
 VEC3 sdf_normal(VEC3 p) {
