@@ -74,7 +74,7 @@ struct State {
 
 fn main() -> Result<(),String> {
 
-    let mb3d_path = "mb3d/recombination.m3p";
+    let mb3d_path = "mb3d/koch_cube01.txt";
     let shader_path = "shaders/engine.spirv";
 
     let encoded = match read_to_string(mb3d_path) {

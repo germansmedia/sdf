@@ -190,6 +190,18 @@ pub struct Lighting {
     icols: [ICol; 4],
 }
 
+pub struct Parameter {
+    type_: u8,
+    value: f64,
+}
+
+pub struct Formula {
+    it_count: u32,
+    nr: u32,
+    name: String,
+    parameters: Vec<Parameter>,
+}
+
 pub struct MB3D {
     id: u8,  // "MandId"
     size: Vec2<usize>,  // output dimensions
@@ -245,6 +257,14 @@ pub struct MB3D {
     mc_contrast: u8,
     m3d_version: f32,
     tiling_options: u32,
+    hca_version: u8,
+    b_options1: u8,
+    b_options2: u8,
+    b_options3: u8,
+    f_count: u8,
+    hyb_opt1: u8,
+    hyb_opt2: u16,
+    formulas: Vec<Formula>,
 }
 
 fn decode_byte(byte: u8) -> Result<u32,String> {
@@ -286,10 +306,44 @@ fn decode_icol(src: &[u8]) -> Result<ICol,String> {
     })
 }
 
+fn decode_formulas(src: &[u8],f_count: usize) -> Result<Vec<Formula>,String> {
+    let mut formulas: Vec<Formula> = Vec::new();
+    for i in 0..f_count {
+        formulas.push(Formula {
+            it_count: u32::from_le_bytes(src[0..4].try_into().unwrap()),
+            nr: u32::from_le_bytes(src[4..8].try_into().unwrap()),
+            name: {
+                let mut name = String::new();
+                for k in 0..32 {
+                    if src[12 + k] != 0 {
+                        name.push(src[12 + k] as char);
+                    }
+                    else {
+                        break;
+                    }
+                }
+                name
+            },
+            parameters: {
+                let mut parameters: Vec<Parameter> = Vec::new();
+                let option_count = u32::from_le_bytes(src[8..12].try_into().unwrap());
+                for k in 0usize..option_count as usize {
+                    parameters.push(Parameter {
+                        type_: src[44 + k],
+                        value: f64::from_le_bytes(src[60 + k * 8..68 + k * 8].try_into().unwrap()),
+                    });
+                }
+                parameters
+            },
+        });
+    }
+    Ok(formulas)
+}
+
 pub fn decode_mb3d(src: &str) -> Result<MB3D,String> {
 
     // strip off the header and newlines
-    let src = match src.strip_prefix("Mandelbulb3Dv18{\n") {
+    let src = match src.strip_prefix("Mandelbulb3Dv18{") {
         Some(src) => src,
         None => return Err("data does not match Mandelbulb3Dv18".to_string()),
     };
@@ -297,7 +351,8 @@ pub fn decode_mb3d(src: &str) -> Result<MB3D,String> {
         Some(src) => src.0,
         None => return Err("data does not match Mandelbulb3Dv18".to_string()),
     };
-    let encoded = src.replace('\n',"");
+    let encoded = src.replace('\r',"");
+    let encoded = encoded.replace('\n',"");
     let encoded = encoded.as_bytes();
 
     // convert base64ish to normal bytes
@@ -311,6 +366,23 @@ pub fn decode_mb3d(src: &str) -> Result<MB3D,String> {
         src[i * 3 + 1] = (((b << 4) & 255) | (c >> 2)) as u8;
         src[i * 3] = (((c << 6) & 255) | d) as u8;
     }
+
+    println!("binary data:");
+    for i in 0..src.len() >> 4 {
+        let mut line = String::new();
+        line.push_str(&format!("{:04X}:",i * 16));
+        for k in 0..16 {
+            line.push_str(&format!(" {:02X}",src[i * 16 + k]));
+        }
+        println!("{}",line);
+    }
+    let mut line = String::new();
+    let offset = src.len() & 0xFFFFFFF0;
+    line.push_str(&format!("{:04X}:",offset));
+    for k in 0..src.len() & 15 {
+        line.push_str(&format!(" {:02X}",src[offset + k]));
+    }
+    println!("{}",line);
 
     // and extract all the things
     Ok(MB3D {
@@ -599,6 +671,14 @@ pub fn decode_mb3d(src: &str) -> Result<MB3D,String> {
                 decode_icol(&src[810..816])?,
             ],
         },
+        hca_version: src[840],
+        b_options1: src[841],
+        b_options2: src[842],
+        b_options3: src[843],
+        f_count: src[844],
+        hyb_opt1: src[845],
+        hyb_opt2: u16::from_le_bytes(src[846..848].try_into().unwrap()),
+        formulas: decode_formulas(&src[848..],src[844] as usize)?,
     })
 }
 
@@ -794,4 +874,20 @@ pub fn dump_mb3d(mb3d: &MB3D) {
     println!("    mc_contrast: {}",mb3d.mc_contrast);
     println!("    m3d_version: {}",mb3d.m3d_version);
     println!("    tiling_options: {}",mb3d.tiling_options);
+    println!("    hca_version: {}",mb3d.hca_version);
+    println!("    b_options: {},{},{}",mb3d.b_options1,mb3d.b_options2,mb3d.b_options3);
+    println!("    f_count: {}",mb3d.f_count);
+    println!("    hyb_opt: {},{}",mb3d.hyb_opt1,mb3d.hyb_opt2);
+    println!("    formulas:");
+    for i in 0..mb3d.formulas.len() {
+        let formula = &mb3d.formulas[i];
+        println!("        formula {}:",i);
+        println!("            it_count: {}",formula.it_count);
+        println!("            nr: {}",formula.nr);
+        println!("            name: {}",formula.name);
+        for k in 0..formula.parameters.len() {
+            let option = &formula.parameters[k];
+            println!("            param {} ({}): {}",k,option.type_,option.value);
+        }
+    }
 }

@@ -11,10 +11,14 @@ layout (binding = 0) readonly uniform WhatIsThisName {
 layout (binding = 1) writeonly uniform image2D out_frame;
 
 // basic types for the calculations
-#define FLOAT float
-#define VEC2 vec2
-#define VEC3 vec3
-#define MAT3 mat3
+//#define FLOAT float
+//#define VEC2 vec2
+//#define VEC3 vec3
+//#define MAT3 mat3
+#define FLOAT double
+#define VEC2 dvec2
+#define VEC3 dvec3
+#define MAT3 dmat3
 
 // guardings
 #define MAX_STEPS 200
