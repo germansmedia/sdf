@@ -1,4 +1,3 @@
 # TODO
 
-- improve loader for lighting
-- check shadertoy and similar for mandelbulb examples
+- rebuild/extend engine to use same-ish parameters as MB3D
