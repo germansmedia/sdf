@@ -74,7 +74,7 @@ struct State {
 
 fn main() -> Result<(),String> {
 
-    let mb3d_path = "mb3d/mandelbulb_init.txt";
+    let mb3d_path = "mb3d/recombination.m3p";
     let shader_path = "shaders/engine.spirv";
 
     let encoded = match read_to_string(mb3d_path) {
@@ -84,7 +84,7 @@ fn main() -> Result<(),String> {
     let mb3d = decode_mb3d(&encoded)?;
     dump_mb3d(&mb3d);
 
-    let size = Vec2 { x: 800i32,y: 600i32, };
+    let size = Vec2 { x: 1024i32,y: 1024i32, };
     let r = Rect { o: Vec2{ x: 0i32,y: 0i32, },s: size, };
 
     let system = Rc::new(System::open()?);

@@ -14,16 +14,17 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #define FLOAT float
 #define VEC2 vec2
 #define VEC3 vec3
+#define MAT3 mat3
 
 // guardings
-#define MAX_STEPS 100
-#define SHADOW_STEPS 100
+#define MAX_STEPS 200
+#define SHADOW_STEPS 1000
 #define CLOSEST_DISTANCE 0.002
-#define MAX_DISTANCE 10.0
+#define MAX_DISTANCE 100.0
 
 // iteration parameters
-#define MAX_ITERATION 20
-#define ESCAPE_DISTANCE 2.0
+#define MAX_ITERATION 60
+#define ESCAPE_DISTANCE 3.0
 
 // bulb parameters
 #define POWER 8
@@ -38,12 +39,17 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 // CosinePow2 parameters
 #define Z_MULTIPLIER 1.0
 
+// Koch parameters
+#define KOCH_STRETCH 1.0
+#define KOCH_POST_SCALE 1.0
+#define KOCH_ADD VEC3(0.0,0.0,0.0)
+#define KOCH_FOLD 1.0
+#define KOCH_ROTATE MAT3(1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0)
+
 // scene
-#define BULB_POS VEC3(0.0,0.0,4.0)
-#define BENESI_POS VEC3(0.0,0.0,4.0)
-#define COSINEPOW2_POS VEC3(0.0,0.0,4.0)
-#define BULB_COLOR VEC3(0.6,0.3,0.1)
-#define LIGHT1_POS VEC3(-5,-7,-10)
+#define POS VEC3(0.0,0.0,6.0)
+#define BULB_COLOR VEC3(0.8,0.6,0.3)
+#define LIGHT1_POS VEC3(-5,-7,-20)
 #define LIGHT1_COLOR VEC3(1.0,0.9,0.7)
 #define LIGHT2_POS VEC3(5,-4,-3)
 #define LIGHT2_COLOR VEC3(0.3,0.1,0.5)
@@ -80,32 +86,35 @@ FLOAT sphere(VEC3 p,VEC3 center,FLOAT radius) {
 // MandelBulb
 
 FLOAT bulb(VEC3 p,VEC3 center) {
-    VEC3 v = p - center;
-    v.z = -v.z;
+    VEC3 c = p - center;
+    VEC3 v = c;
     if(length(v) > 1.5) return length(v) - 1.2;
     FLOAT dr = 1.0;
-    FLOAT r = 0.0;
+    FLOAT r = length(v);
     for (int i = 0; i < MAX_ITERATION; i++) {
         r = length(v);
         if (r > ESCAPE_DISTANCE) break;
         dr = POWER * pow(r,POWER - 1.0) * dr + 1.0;
+        //dr = 2.0 * dr * r;
         FLOAT theta = acos(v.z / r) * POWER;
         FLOAT phi = atan(v.y,v.x) * POWER;
         FLOAT sinTheta = sin(theta);
-        v = pow(r,POWER) * VEC3(sinTheta * cos(phi),sinTheta * sin(phi),cos(theta)) + p - center;
+        v = pow(r,POWER) * VEC3(sinTheta * cos(phi),sinTheta * sin(phi),cos(theta)) + c;
     }
     return 0.5 * log(r) * r / dr;
-    //return 0.5 * log(r) * r;
 }
 
 // BenesiPine1
 
 FLOAT benesi(VEC3 p,VEC3 center) {
-    VEC3 v = p - center;
-    FLOAT r = v.x * v.x + v.y * v.y + v.z * v.z;
+    VEC3 c = p - center;
+    VEC3 v = c;
+    FLOAT r = length(v);
+    FLOAT dr = 1.0;
     for (int i = 0; i < MAX_ITERATION; i++) {
         r = length(v);
         if (r > ESCAPE_DISTANCE) break;
+        dr = 2.0 * dr * r;
         FLOAT tx = (v.x * STT - v.z * SOT) * SOH;
         FLOAT z = abs(v.x * SOT + v.z * STT);
         FLOAT x = abs(tx - v.y * SOH);
@@ -123,29 +132,96 @@ FLOAT benesi(VEC3 p,VEC3 center) {
         FLOAT t = 2 * x / sqrt(yt + zt);
         v = VEC3(
             xt - yt - zt,
-            t * (yt - zt),
-            2 * t * y * z
-        ) + p - center;
+            2 * t * y * t * (yt - zt),
+            t * (yt - zt)
+        ) + c;
     }
-    return 0.5 * log(r) * r;  // would this work?
+    return 0.1 * r;
+    //return 0.5 * log(r) * r / dr;  // would this work?
 }
 
 // CosinePow2
 
 FLOAT cosine_pow2(VEC3 p,VEC3 center) {
-    VEC3 v = p - center;
-    FLOAT r = v.x * v.x + v.y * v.y + v.z * v.z;
+    VEC3 c = p - center;
+    VEC3 v = c;
+    FLOAT r = length(v);
+    FLOAT dr = 1.0;
     for (int i = 0; i < MAX_ITERATION; i++) {
         r = length(v);
         if (r > ESCAPE_DISTANCE) break;
+        dr = 2.0 * dr * r;
         FLOAT q = 2 * v.z / sqrt(v.x * v.x + v.y * v.y);
         v = VEC3(
             (v.y * v.y - v.x * v.x) * q,
             2 * v.x * v.y * q,
             (v.z * v.z - v.x * v.x - v.y * v.y) * Z_MULTIPLIER
-        ) + p - center;
+        ) + c;
     }
-    return 0.5 * log(r) * r;  // would this work?
+    return 0.5 * log(r) * r / dr;
+}
+
+// QuickDudley
+
+FLOAT quick_dudley(VEC3 p,VEC3 center) {
+    VEC3 c = p - center;
+    VEC3 v = c;
+    FLOAT r = length(v);
+    FLOAT dr = 1.0;
+    for (int i = 0; i < MAX_ITERATION; i++) {
+        r = length(v);
+        if (r > ESCAPE_DISTANCE) break;
+        dr = 2.0 * dr * r;
+        v = VEC3(
+            v.x * v.x - 2.0 * v.z * v.y,
+            v.z * v.z + 2.0 * v.y * v.x,
+            v.y * v.y + 2.0 * v.x * v.z
+        ) + c;
+    }
+    return 0.5 * log(r) * r / dr;
+}
+
+// Koch Cube
+
+FLOAT koch_cube(VEC3 p,VEC3 center) {
+    VEC3 c = rotate_y(rotate_x(p - center,0.9),0.9);
+    VEC3 v = c;
+    FLOAT r = length(v);
+    FLOAT w = 1.0;
+    for (int i = 0; i < MAX_ITERATION; i++) {
+        r = length(v);
+        if (r > ESCAPE_DISTANCE) break;
+        v = 3 * abs(v);
+        w = 3 * KOCH_POST_SCALE * w / KOCH_STRETCH;
+        if (v.y > v.x) {
+            v = v.yxz;
+        }
+        if (v.z > v.x) {
+            v = v.zyx;
+        }
+        if (v.z > v.y) {
+            v = v.xzy;
+        }
+        v = KOCH_ROTATE * (v + KOCH_ADD);
+        v.z = KOCH_FOLD - abs(KOCH_FOLD - v.z);
+        FLOAT a = 3 - KOCH_STRETCH;
+        FLOAT b = 3 + KOCH_STRETCH;
+        FLOAT c = v.x - a;
+        FLOAT d = v.x - b;
+        if (c < v.y) {
+            v.x = c;
+            v.y = v.y - a;
+        }
+        else if (d > v.y) {
+            v.x = d;
+        }
+        else {
+            v.x = v.y;
+            v.y = d;
+        }
+        v = KOCH_POST_SCALE * VEC3(v.x / KOCH_STRETCH,v.y / KOCH_STRETCH,v.z);
+    }
+    return r / abs(w);
 }
 
 //FLOAT sdf(VEC3 p) {
@@ -153,9 +229,11 @@ FLOAT cosine_pow2(VEC3 p,VEC3 center) {
 //}
 
 FLOAT sdf(VEC3 p) {
-    return bulb(p,BULB_POS);
-    //return benesi(p,BENESI_POS);
-    //return cosine_pow2(p,COSINEPOW2_POS);
+    //return bulb(p,POS);
+    //return benesi(p,POS);
+    //return cosine_pow2(p,POS);
+    //return quick_dudley(p,POS);
+    return koch_cube(p,POS);
 }
 
 VEC3 sdf_normal(VEC3 p) {
@@ -179,6 +257,7 @@ vec2 phong(VEC3 p,VEC3 light_pos) {
     if (diff <= 0) {
         return VEC2(0,0);
     }
+    /*
     p += SHADOW_OFFSET * dp;
     FLOAT total_distance = 0.0;
     FLOAT closest_distance = MAX_DISTANCE;
@@ -199,8 +278,10 @@ vec2 phong(VEC3 p,VEC3 light_pos) {
         }
         closest_distance = min(closest_distance,d / total_distance);
     }
+    */
     FLOAT spec = pow(dot(normalize(dot(n,l) * n - normalize(l)),dp),128.0);
-    return min(SHADOW_SHARPNESS * closest_distance,1) * VEC2(diff,spec);
+    //return min(SHADOW_SHARPNESS * closest_distance,1) * VEC2(diff,spec);
+    return VEC2(diff,spec);
 }
 
 vec4 march(VEC3 p,VEC3 dp) {
