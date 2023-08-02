@@ -31,10 +31,10 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 
 // iteration parameters
 #define ITERATIONS 60
-#define ESCAPE_DISTANCE 15.0
+#define ESCAPE_DISTANCE 20.0
 
 // scene
-#define POS vec3(3.0,0.0,10.0)
+#define POS vec3(4.0,2.0,20.0)
 
 // rendering
 #define OBJECT_COLOR vec3(0.1,0.2,0.9)
@@ -44,9 +44,11 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #define LIGHT2_POS vec3(5,-4,-3)
 #define LIGHT2_COLOR vec3(0.3,0.1,0.5)
 #define BACKGROUND_COLOR vec3(0.1,0.1,0.2)
+#define GLOW_COLOR vec3(0.4,0.4,0.4)
 #define AMBIENT_COLOR vec3(0.4,0.4,0.4)
 #define SHADOW_OFFSET 0.0
 #define SHADOW_SHARPNESS 40.0
+#define GLOW_SHARPNESS 40.0
 
 #include "mandelbulb.glsl"
 #include "quickdudley.glsl"
@@ -116,7 +118,8 @@ void do_iterations(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT trap) {
 }
 
 vec2 iterate_analytical(VEC3 p) {
-    VEC3 c = rotate_y(rotate_x(p - POS,0.6),-0.4);
+    VEC3 c = p - POS;
+    c = rotate_y(c,1.2);
     VEC3 v = c;
     FLOAT dr = 1.0;
     FLOAT trap = 1e10;
@@ -187,7 +190,8 @@ vec2 phong(vec3 p,vec3 light_pos) {
 
 vec4 march(vec3 p,vec3 dp) {
 
-    float distance = 0.0;
+    float total_distance = 0.0;
+    float closest_distance = MAX_DISTANCE;
     float smallest_trap = 1e10;
     int steps;
     for (steps = 0; steps < MAX_STEPS; steps++) {
@@ -197,13 +201,18 @@ vec4 march(vec3 p,vec3 dp) {
             smallest_trap = s.y;
         }
         p += d * dp;
-        distance += d;
-        if (distance > MAX_DISTANCE) {
-            return vec4(BACKGROUND_COLOR,1.0);
+        total_distance += d;
+        if (total_distance > MAX_DISTANCE) {
+            float g = 1.0 - min(GLOW_SHARPNESS * closest_distance,1.0);
+            g = g * g;
+            g = g * g;
+            vec3 pixel = (1 - g) * BACKGROUND_COLOR + g * GLOW_COLOR;
+            return vec4(pixel,1.0);
         }
         if (d < CLOSEST_DISTANCE) {
             break;
         }
+        closest_distance = min(closest_distance,d / total_distance);
     }
 
     smallest_trap = clamp(log(smallest_trap),0.0,1.0);
@@ -218,8 +227,9 @@ vec4 march(vec3 p,vec3 dp) {
     pixel = (AMBIENT_COLOR + ph.x * LIGHT1_COLOR) * pixel + ph.y * LIGHT1_COLOR;
 
     // fog
-    //float f = distance / MAX_DISTANCE;
-    //pixel = (1 - f * f) * pixel + f * f * BACKGROUND_COLOR;
+    float f = total_distance / MAX_DISTANCE;
+    f = f * f;
+    pixel = (1 - f) * pixel + f * BACKGROUND_COLOR;
 
     return vec4(pixel,1);
 }
