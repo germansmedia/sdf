@@ -1,0 +1,40 @@
+#define KOCH_POST_SCALE 0.14810600000000002
+#define KOCH_STRETCH 0.08969800000000001
+#define KOCH_FOLD 0.049020999999999995
+#define KOCH_ADD VEC3(0.039633999999999996,-0.08135400000000001,-0.0031289999999999985)
+#define KOCH_ROTATION MAT3(1.0,0.0,0.0, 0.0,1.0,0.0, 0.0,0.0,1.0)
+
+// the rotation angles should be:
+// x: -0.1016925
+// y: 0.054757499999999994
+// z: 0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000043574506110529286
+
+void kochcube(inout VEC3 v,inout FLOAT dr,VEC3 c) {
+    v = 3 * abs(v);
+    if (v.y > v.x) {
+        v = v.yxz;
+    }
+    if (v.z > v.x) {
+        v = v.zyx;
+    }
+    if (v.z > v.y) {
+        v = v.xzy;
+    }
+    v = KOCH_ROTATION * (v + KOCH_ADD);
+    v.z = KOCH_FOLD - abs(KOCH_FOLD - v.z);
+    FLOAT sc = v.x - (3 - KOCH_STRETCH);
+    FLOAT sd = v.x - (3 + KOCH_STRETCH);
+    if (sc < v.y) {
+        v.x = sc;
+        v.y = v.y - (3 - KOCH_STRETCH);
+    }
+    else if (sd > v.y) {
+        v.x = sd;
+    }
+    else {
+        v.x = v.y;
+        v.y = sd;
+    }
+    v = KOCH_POST_SCALE * VEC3(v.x / KOCH_STRETCH,v.y / KOCH_STRETCH,v.z) + c;
+    dr = 3 * KOCH_POST_SCALE * dr / KOCH_STRETCH;
+}

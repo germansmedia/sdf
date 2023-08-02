@@ -327,7 +327,7 @@ let sz = ab2 + iz;
 let tx = sx * sx;
 let ty = sy * sy;
 let tz = sz * sz;
-let t = (tx + ty + tz) / ir;
+let t = (sx * sx + sy * sy + sz * sz) / ir;
 let q = if t ? (mr * mr) {
     s / (mr * mr)
 }

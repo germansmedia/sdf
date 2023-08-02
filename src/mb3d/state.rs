@@ -308,15 +308,15 @@ fn decode_icol(src: &[u8]) -> Result<ICol,String> {
 
 fn decode_formulas(src: &[u8],f_count: usize) -> Result<Vec<Formula>,String> {
     let mut formulas: Vec<Formula> = Vec::new();
-    for i in 0..f_count {
+    for i in 0..f_count {      
         formulas.push(Formula {
-            it_count: u32::from_le_bytes(src[0..4].try_into().unwrap()),
-            nr: u32::from_le_bytes(src[4..8].try_into().unwrap()),
+            it_count: u32::from_le_bytes(src[i * 188..i * 188 + 4].try_into().unwrap()),
+            nr: u32::from_le_bytes(src[i * 188 + 4..i * 188 + 8].try_into().unwrap()),
             name: {
                 let mut name = String::new();
                 for k in 0..32 {
-                    if src[12 + k] != 0 {
-                        name.push(src[12 + k] as char);
+                    if src[i * 188 + 12 + k] != 0 {
+                        name.push(src[i * 188 + 12 + k] as char);
                     }
                     else {
                         break;
@@ -326,11 +326,11 @@ fn decode_formulas(src: &[u8],f_count: usize) -> Result<Vec<Formula>,String> {
             },
             parameters: {
                 let mut parameters: Vec<Parameter> = Vec::new();
-                let option_count = u32::from_le_bytes(src[8..12].try_into().unwrap());
+                let option_count = u32::from_le_bytes(src[i * 188 + 8..i * 188 + 12].try_into().unwrap());
                 for k in 0usize..option_count as usize {
                     parameters.push(Parameter {
-                        type_: src[44 + k],
-                        value: f64::from_le_bytes(src[60 + k * 8..68 + k * 8].try_into().unwrap()),
+                        type_: src[i * 188 + 44 + k],
+                        value: f64::from_le_bytes(src[i * 188 + 60 + k * 8..i * 188 + 68 + k * 8].try_into().unwrap()),
                     });
                 }
                 parameters

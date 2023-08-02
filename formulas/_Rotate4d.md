@@ -95,4 +95,43 @@ D84EC8DEC1DD19D84EC4D9C9D84EC0DEC1D9C9D84EBCDEC1D9C9D84EB8DEC1DD
 
 ## Code
 
-It's a matrix-vector multiplication, the hard part is getting the matrix conversion from the '6 rotation angles' right.
+```rust
+fn rotate4d(v: &mut Vec4<f64>,yz: f64,xz: f64,xy: f64,xw: f64,yw: f64,zw: f64) {
+    let mut mat = Mat4::<f64>::ONE;
+    mat.y.y = cos(yz);
+    mat.z.z = cos(yz);
+    mat.y.z = -sin(yz);
+    mat.z.y = sin(yz);
+    let mat2 = Mat4::<f64>::ONE;
+    mat2.x.x = cos(xz);
+    mat2.z.z = cos(xz);
+    mat2.x.z = -sin(xz);
+    mat2.z.x = sin(xz);
+    mat *= mat2;
+    let mat2 = Mat4::<f64>::ONE;
+    mat2.x.x = cos(xy);
+    mat2.y.y = cos(xy);
+    mat2.x.y = -sin(xy);
+    mat2.y.x = sin(xy);
+    mat *= mat2;
+    let mat2 = Mat4::<f64>::ONE;
+    mat2.x.x = cos(xw);
+    mat2.w.w = cos(xw);
+    mat2.x.w = -sin(xw);
+    mat2.w.x = sin(xw);
+    mat *= mat2;
+    let mat2 = Mat4::<f64>::ONE;
+    mat2.y.y = cos(yw);
+    mat2.w.w = cos(yw);
+    mat2.y.w = -sin(yw);
+    mat2.w.y = sin(yw);
+    mat *= mat2;
+    let mat2 = Mat4::<f64>::ONE;
+    mat2.z.z = cos(zw);
+    mat2.w.w = cos(zw);
+    mat2.z.w = -sin(zw);
+    mat2.z.w = sin(zw);
+    mat *= mat2;
+    v = mat * v;
+}
+```
