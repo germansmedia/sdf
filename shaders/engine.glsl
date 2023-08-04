@@ -24,17 +24,17 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 
 // marching parameters
 #define MAX_STEPS 1000
-#define CLOSEST_DISTANCE 0.0001
+#define CLOSEST_DISTANCE 0.001
 #define MAX_DISTANCE 100.0
-#define RAY_STEP_MULTIPLIER 0.3
+#define RAY_STEP_MULTIPLIER 0.1
 #define NORMAL_STEP_MULTIPLIER 0.001
 
 // iteration parameters
 #define ITERATIONS 60
-#define ESCAPE_DISTANCE 20.0
+#define ESCAPE_DISTANCE 5.0
 
 // scene
-#define POS vec3(4.0,2.0,20.0)
+#define POS vec3(0.0,0.0,20.0)
 
 // rendering
 #define OBJECT_COLOR vec3(0.1,0.2,0.9)
@@ -83,9 +83,10 @@ float sphere(vec3 p,vec3 center,float radius) {
     return length(center - p) - radius;
 }
 
-void do_iterations(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT trap) {
-    reciprocalz3b(v,dr,c);
-    FLOAT r = length(v);
+FLOAT do_iterations(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT trap) {
+    FLOAT r = 0.0;
+    /*reciprocalz3b(v,dr,c);
+    r = length(v);
     if (r < trap) { trap = r; }
     if (r > ESCAPE_DISTANCE) return;
     rotate4d(v,dr,c);
@@ -109,12 +110,15 @@ void do_iterations(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT trap) {
     if (r < trap) { trap = r; }
     if (r > ESCAPE_DISTANCE) return;
     amazingbox2(v,dr,c);
-    for (int i = 0; i < ITERATIONS - 7; i++) {
+    if (r < trap) { trap = r; }
+    if (r > ESCAPE_DISTANCE) return;*/
+    for (int i = 0; i < ITERATIONS; i++) {
         kochcube(v,dr,c);
         r = length(v);
         if (r < trap) { trap = r; }
-        if (r > ESCAPE_DISTANCE) return;
+        if (r > ESCAPE_DISTANCE) break;
     }
+    return r;
 }
 
 vec2 iterate_analytical(VEC3 p) {
@@ -123,8 +127,7 @@ vec2 iterate_analytical(VEC3 p) {
     VEC3 v = c;
     FLOAT dr = 1.0;
     FLOAT trap = 1e10;
-    do_iterations(v,dr,c,trap);
-    FLOAT r = length(v);
+    FLOAT r = do_iterations(v,dr,c,trap);
     return vec2(r / abs(dr),trap);
 }
 
@@ -191,7 +194,7 @@ vec2 phong(vec3 p,vec3 light_pos) {
 vec4 march(vec3 p,vec3 dp) {
 
     float total_distance = 0.0;
-    float closest_distance = MAX_DISTANCE;
+    //float closest_distance = MAX_DISTANCE;
     float smallest_trap = 1e10;
     int steps;
     for (steps = 0; steps < MAX_STEPS; steps++) {
@@ -203,16 +206,16 @@ vec4 march(vec3 p,vec3 dp) {
         p += d * dp;
         total_distance += d;
         if (total_distance > MAX_DISTANCE) {
-            float g = 1.0 - min(GLOW_SHARPNESS * closest_distance,1.0);
-            g = g * g;
-            g = g * g;
-            vec3 pixel = (1 - g) * BACKGROUND_COLOR + g * GLOW_COLOR;
-            return vec4(pixel,1.0);
+            //float g = 1.0 - min(GLOW_SHARPNESS * closest_distance,1.0);
+            //g = g * g;
+            //g = g * g;
+            //vec3 pixel = (1 - g) * BACKGROUND_COLOR + g * GLOW_COLOR;
+            return vec4(BACKGROUND_COLOR,1.0);
         }
         if (d < CLOSEST_DISTANCE) {
             break;
         }
-        closest_distance = min(closest_distance,d / total_distance);
+        //closest_distance = min(closest_distance,d / total_distance);
     }
 
     smallest_trap = clamp(log(smallest_trap),0.0,1.0);

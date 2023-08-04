@@ -102,284 +102,317 @@ FORMULA AND IMPLEMENTATION; 100% by Luca G.N. 2011.
 
 ## Disassembly
 
-`[EBX]` = x
-`[EDX]` = y
-`[ECX]` = z
-`[ECX+08]` = w
-
-`[EDI+10]` = 4
-`[EDI+08]` = 3
-`[EDI]` = 2
-`[EDI-08]` = 0.5
-`[EDI-10]` = ps = Post-scale
-`[EDI-18]` = s = XY Stretch
-`[EDI-20]` = f = Z Fold
-`[EDI-28]` = ax = X Add
-`[EDI-30]` = ay = Y Add
-`[EDI-38]` = az = Z Add
-`[EDI-3C]` = r0
-`[EDI-40]` = r1
-`[EDI-44]` = r2
-`[EDI-48]` = r3
-`[EDI-4C]` = r4
-`[EDI-50]` = r5
-`[EDI-54]` = r6
-`[EDI-58]` = r7
-`[EDI-5C]` = r8
-`[EBP-20]` = a
-`[EBP-18]` = b
-`[EBP-10]` = c
-`[EBP-08]` = d
 ```
-00000000 55                              PUSH EBP
-00000001 8BEC                            MOV EBP,ESP
-00000003 81EC20000000                    SUB ESP,00000020
+[ebx] = x
+[edx] = y
+[ecx] = z
+[ecx+08] = w
+esi = TIteration3Dext
+edi = PVar
+[edi-5C] = rot.z.z
+[edi-58] = rot.z.y
+[edi-54] = rot.z.x
+[edi-50] = rot.y.z
+[edi-4C] = rot.y.y
+[edi-48] = rot.y.x
+[edi-44] = rot.x.z
+[edi-40] = rot.x.y
+[edi-3C] = rot.x.x
+[edi-38] = Z Add
+[edi-30] = Y Add
+[edi-28] = X Add
+[edi-20] = Z Fold
+[edi-18] = XY Stretch
+[edi-10] = Post-scale
+[edi-08] = 0.5
+[edi] = 2
+[edi+08] = 3
+[edi+10] = 4
+[ebp-08] = d
+[ebp-10] = c
+[ebp-18] = b
+[ebp-20] = a
 
-00000009 53                              PUSH EBX
-0000000A 56                              PUSH ESI
-0000000B 57                              PUSH EDI
+0:  55                      push   ebp
+1:  8b ec                   mov    ebp,esp
+3:  81 ec 20 00 00 00       sub    esp,0x20             // reserve space for a, b, c and d
+9:  53                      push   ebx
+a:  56                      push   esi
+b:  57                      push   edi
+c:  8b 75 08                mov    esi,TIteration3Dext
+f:  8b 7e 30                mov    edi,PVar
+12: 8b d8                   mov    ebx,eax
 
-0000000C 8B7508                          MOV ESI,DWORD PTR [EBP+08]
-0000000F 8B7E30                          MOV EDI,DWORD PTR [ESI+30]
+v = 3 * abs(v)
 
-00000012 8BD8                            MOV EBX,EAX
+14: dd 03                   fld    x                    // x
+16: d9 e1                   fabs                        // abs(x)
+18: dc 4f 08                fmul   3                    // 3 * abs(x)
+1b: dd 1b                   fstp   x                    // x = 3 * abs(x)
+1d: 90                      nop
+1e: dd 02                   fld    y                    // y
+20: d9 e1                   fabs                        // abs(y)
+22: dc 4f 08                fmul   3                    // 3 * abs(y)
+25: dd 1a                   fstp   y                    // y = 3 * abs(y)
+27: 90                      nop
+28: dd 01                   fld    z                    // z
+2a: d9 e1                   fabs                        // abs(z)
+2c: dc 4f 08                fmul   3                    // 3 * abs(z)
+2f: dd 19                   fstp   z                    // z = 3 * abs(z)
 
-00000014 DD03                            FLD x           // x;
-00000016 D9E1                            FABS            // |x|;
-00000018 DC4F08                          FMUL 3          // 3 |x|;
-0000001B DD1B                            FSTP x          // x = 3 |x|;
+dr = 3 * post_scale * dr / xy_stretch
 
-0000001D 90                              NOP
+31: dd 41 08                fld    w                    // w
+34: dc 4f 08                fmul   3                    // 3 * w
+37: dc 77 e8                fdiv   XY Stretch           // 3 * w / xy_stretch
+3a: dc 4f f0                fmul   Post-scale           // 3 * post_scale * w / xy_stretch
+3d: dd 59 08                fstp   w                    // w = 3 * post_scale * w / xy_stretch
 
-0000001E DD02                            FLD y           // y;
-00000020 D9E1                            FABS            // |y|;
-00000022 DC4F08                          FMUL 3          // 3 |y|;
-00000025 DD1A                            FSTP y          // y = 3 |y|;
+40: 90                      nop
+41: d9 d0                   fnop
 
-00000027 90                              NOP
+// sort components so that v.x is the largest and v.z is the smallest
 
-00000028 DD01                            FLD z           // z;
-0000002A D9E1                            FABS            // |z|;
-0000002C DC4F08                          FMUL 3          // 3 |z|;
-0000002F DD19                            FSTP z          // z = 3 |z|;
+if (v.y > v.x) {
+    swap(v.x,v.y);
+}
 
-00000031 DD4108                          FLD w           // w;
-00000034 DC4F08                          FMUL 3          // 3 w;
-00000037 DC77E8                          FDIV s          // 3 w / s;
-0000003A DC4FF0                          FMUL ps         // 3 ps w / s;
-0000003D DD5908                          FSTP w          // w = 3 ps w / s;
+43: dd 03                   fld    x                    // x
+45: dd 02                   fld    y                    // y; x
+47: de d9                   fcompp                      // y ? x (C3 = y == x, C0 = y < x)
+49: df e0                   fnstsw ax
+4b: 80 e4 41                and    ah,0x41              // ZF = (y != x) && (y >= x)
+4e: 77 08                   ja     0x58                 // y <= x
 
-00000040 90                              NOP
-00000041 D9D0                            FNOP
+50: dd 03                   fld    x                    // x
+52: dd 02                   fld    y                    // y; x
+54: dd 1b                   fstp   x                    // x = y; x
+56: dd 1a                   fstp   y                    // y = what x was at 50
 
-00000043 DD03                            FLD x           // x;
-00000045 DD02                            FLD y           // y; x;
-00000047 DED9                            FCOMPP          // y ? x
-00000049 DFE0                            FNSTSW AX
-0000004B 80E441                          AND AH,41
-0000004E 7708                            JA 00000058
+if (v.z > v.x) {
+    swap(v.x,v.z);
+}
 
-00000050 DD03                            FLD x           // x;
-00000052 DD02                            FLD y           // y; x;
-00000054 DD1B                            FSTP x          // t = y; x;
-00000056 DD1A                            FSTP y          // y = x, x = t
+58: dd 03                   fld    x                    // x
+5a: dd 01                   fld    z                    // z; x
+5c: de d9                   fcompp                      // z ? x (C3 = z == x, C0 = z < x)
+5e: df e0                   fnstsw ax
+60: 80 e4 41                and    ah,0x41              // ZF = (z != x) && (z >= x)
+63: 77 08                   ja     0x6d                 // z <= x
 
-00000058 DD03                            FLD x           // x;
-0000005A DD01                            FLD z           // z; x;
-0000005C DED9                            FCOMPP          // z ? x
-0000005E DFE0                            FNSTSW AX
-00000060 80E441                          AND AH,41
-00000063 7708                            JA 0000006D
+65: dd 03                   fld    x                    // x
+67: dd 01                   fld    z                    // z; x
+69: dd 1b                   fstp   x                    // x = z; x
+6b: dd 19                   fstp   z                    // z = what x was at 65
 
-00000065 DD03                            FLD x           // x;
-00000067 DD01                            FLD z           // z; x;
-00000069 DD1B                            FSTP x          // t = z; x;
-0000006B DD19                            FSTP z          // z = x, x = t
+if (v.y > v.z) {
+    swap(v.y,v.z);
+}
 
-0000006D DD01                            FLD z           // z;
-0000006F DD02                            FLD y           // y; z;
-00000071 DED9                            FCOMPP          // y ? z
-00000073 DFE0                            FNSTSW AX
-00000075 80E441                          AND AH,41
-00000078 7608                            JBE 00000082
+6d: dd 01                   fld    z                    // z
+6f: dd 02                   fld    y                    // y; z
+71: de d9                   fcompp                      // y ? z (C3 = y == z, C0 = y < z)
+73: df e0                   fnstsw ax
+75: 80 e4 41                and    ah,0x41              // ZF = (y != z) && (y >= z)
+78: 76 08                   jna    0x82                 // y > z
 
-0000007A DD01                            FLD z           // z;
-0000007C DD02                            FLD y           // y; z;
-0000007E DD19                            FSTP z          // t = z; y;
-00000080 DD1A                            FSTP y          // z = y, y = t
+7a: dd 01                   fld    z                    // z
+7c: dd 02                   fld    y                    // y; z
+7e: dd 19                   fstp   z                    // z = y; z
+80: dd 1a                   fstp   y                    // y = what z was at 7a
 
-00000082 D9D0                            FNOP
+82: d9 d0                   fnop
 
-00000084 DD01                            FLD z           // z;
-00000086 DC47C8                          FADD az         // z + az;
-00000089 DD02                            FLD y           // y; z + az;
-0000008B DC47D0                          FADD ay         // y + ay; z + az;
-0000008E DD03                            FLD x           // x; y + ay; z + az;
-00000090 DC47D8                          FADD ax         // x + ax; y + ay; z + az;
-00000093 D9C0                            FLD ST(0)       // x + ax; x + ax; y + ay; z + az;
-00000095 D84FAC                          FMUL r6         // r6 (x + ax); x + ax; y + ay; z + az;
-00000098 D9C2                            FLD ST(2)       // y + ay; r6 (x + ax); x + ax; y + ay; z + az;
-0000009A D84FA8                          FMUL r7         // r7 (y + ay); r6 (x + ax); x + ax; y + ay; z + az;
-0000009D DEC1                            FADDP ST(1),ST  // r6 (x + ax) + r7 (y + ay); x + ax; y + ay; z + az;
-0000009F D9C3                            FLD ST(3)       // z + az; r6 (x + ax) + r7 (y + ay); x + ax; y + ay; z + az;
-000000A1 D84FA4                          FMUL r8         // r8 (z + az); r6 (x + ax) + r7 (y + ay); x + ax; y + ay; z + az;
-000000A4 DEC1                            FADDP ST(1),ST  // r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
+v = rot * (v + v_add)
 
-000000A6 D9C1                            FLD ST(1)       // x + ax; r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000A8 D84FC4                          FMUL r0         // r0 (x + ax); r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000AB D9C3                            FLD ST(3)       // y + ay; r0 (x + ax); r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000AD D84FC0                          FMUL r1         // r1 (y + ay); r0 (x + ax); r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000B0 DEC1                            FADDP ST(1),ST  // r0 (x + ax) + r1 (y + ay); r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000B2 D9C4                            FLD ST(4)       // z + az; r0 (x + ax) + r1 (y + ay); r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000B4 D84FBC                          FMUL r2         // r2 (z + az); r0 (x + ax) + r1 (y + ay); r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000B7 DEC1                            FADDP ST(1),ST  // r0 (x + ax) + r1 (y + ay) + r2 (z + az); r6 (x + ax) + r7 (y + ay) + r8 (z + az); x + ax; y + ay; z + az;
-000000B9 D9CA                            FXCH ST(2)      // x + ax; r6 (x + ax) + r7 (y + ay) + r8 (z + az); r0 (x + ax) + r1 (y + ay) + r2 (z + az); y + ay; z + az;
-000000BB D84FB8                          FMUL r3         // r3 (x + ax); r6 (x + ax) + r7 (y + ay) + r8 (z + az); r0 (x + ax) + r1 (y + ay) + r2 (z + az); y + ay; z + az;
-000000BE D9CB                            FXCH ST(3)      // y + ay; r6 (x + ax) + r7 (y + ay) + r8 (z + az); r0 (x + ax) + r1 (y + ay) + r2 (z + az); r3 (x + ax); z + az;
-000000C0 D84FB4                          FMUL r4         // r4 (y + ay); r6 (x + ax) + r7 (y + ay) + r8 (z + az); r0 (x + ax) + r1 (y + ay) + r2 (z + az); r3 (x + ax); z + az;
-000000C3 DEC3                            FADDP ST(3),ST  // r6 (x + ax) + r7 (y + ay) + r8 (z + az); r0 (x + ax) + r1 (y + ay) + r2 (z + az); r3 (x + ax) + r4 (y + ay); z + az;
-000000C5 D9CB                            FXCH ST(3)      // z + az; r0 (x + ax) + r1 (y + ay) + r2 (z + az); r3 (x + ax) + r4 (y + ay); r6 (x + ax) + r7 (y + ay) + r8 (z + az);
-000000C7 D84FB0                          FMUL r5         // r5 (z + az); r0 (x + ax) + r1 (y + ay) + r2 (z + az); r3 (x + ax) + r4 (y + ay); r6 (x + ax) + r7 (y + ay) + r8 (z + az);
-000000CA DEC2                            FADDP ST(2),ST  // r0 (x + ax) + r1 (y + ay) + r2 (z + az); r3 (x + ax) + r4 (y + ay) + r5 (z + az); r6 (x + ax) + r7 (y + ay) + r8 (z + az);
-000000CC DD1B                            FSTP x          // x = r0 (x + ax) + r1 (y + ay) + r2 (z + az), r3 (x + ax) + r4 (y + ay) + r5 (z + az); r6 (x + ax) + r7 (y + ay) + r8 (z + az);
-000000CE DD1A                            FSTP y          // y = r3 (x + ax) + r4 (y + ay) + r5 (z + az), r6 (x + ax) + r7 (y + ay) + r8 (z + az);
-000000D0 DD19                            FSTP z          // z = r6 (x + ax) + r7 (y + ay) + r8 (z + az)
+84: dd 01                   fld    z                    // z
+86: dc 47 c8                fadd   Z Add                // z + z_add
+89: dd 02                   fld    y                    // y; z + z_add
+8b: dc 47 d0                fadd   Y Add                // y + y_add; z + z_add
+8e: dd 03                   fld    x                    // x; y + y_add; z + z_add
+90: dc 47 d8                fadd   X Add                // x + x_add; y + y_add; z + z_add
+93: d9 c0                   fld    st(0)
+95: d8 4f ac                fmul   rot.z.x
+98: d9 c2                   fld    st(2)
+9a: d8 4f a8                fmul   rot.z.y
+9d: de c1                   faddp  st(1),st
+9f: d9 c3                   fld    st(3)
+a1: d8 4f a4                fmul   rot.z.z
+a4: de c1                   faddp  st(1),st
+a6: d9 c1                   fld    st(1)
+a8: d8 4f c4                fmul   rot.x.x
+ab: d9 c3                   fld    st(3)
+ad: d8 4f c0                fmul   rot.x.y
+b0: de c1                   faddp  st(1),st
+b2: d9 c4                   fld    st(4)
+b4: d8 4f bc                fmul   rot.x.z
+b7: de c1                   faddp  st(1),st
+b9: d9 ca                   fxch   st(2)
+bb: d8 4f b8                fmul   rot.y.x
+be: d9 cb                   fxch   st(3)
+c0: d8 4f b4                fmul   rot.y.y
+c3: de c3                   faddp  st(3),st
+c5: d9 cb                   fxch   st(3)
+c7: d8 4f b0                fmul   rot.y.z
+ca: de c2                   faddp  st(2),st
+cc: dd 1b                   fstp   x
+ce: dd 1a                   fstp   y
+d0: dd 19                   fstp   z
 
-000000D2 90                              NOP
+d2: 90                      nop
 
-000000D3 DD47E0                          FLD f           // f;
-000000D6 DC21                            FSUB z          // f - z;
-000000D8 D9E1                            FABS            // |f - z|;
-000000DA D9E0                            FCHS            // -|f - z|;
-000000DC DC47E0                          FADD f          // f - |f - z|;
-000000DF DD19                            FSTP z          // z = f - |f - z|
+v.z = z_fold - abs(z_fold - v.z)
 
-000000E1 90                              NOP
+d3: dd 47 e0                fld    Z Fold               // z_fold
+d6: dc 21                   fsub   z                    // z_fold - z
+d8: d9 e1                   fabs                        // abs(z_fold - z)
+da: d9 e0                   fchs                        // -abs(z_fold - z)
+dc: dc 47 e0                fadd   Z Fold               // -abs(z_fold - z) + z_fold
+df: dd 19                   fstp   z                    // z = z_fold - abs(z_fold - z)
 
-000000E2 DD4708                          FLD 3           // 3;
-000000E5 D9C0                            FLD ST(0)       // 3; 3;
-000000E7 DD47E8                          FLD s           // s; 3; 3;
-000000EA DEC1                            FADDP ST(1),ST  // 3 + s; 3;
-000000EC DD5DE8                          FSTP b          // b = 3 + s
-000000EF DD47E8                          FLD s           // s; 3;
-000000F2 DEE9                            FSUBP ST(1),ST  // 3 - s;
-000000F4 DD5DE0                          FSTP a          // a = 3 - s
+e1: 90                      nop
 
-000000F7 90                              NOP
+a = xy_stretch - 3
+b = xy_stretch + 3
 
-000000F8 DD03                            FLD x           // x;
-000000FA DC65E0                          FSUB a          // x - a;
-000000FD DD5DF8                          FSTP c          // c = x - a
+e2: dd 47 08                fld    3                    // 3
+e5: d9 c0                   fld    st(0)                // 3; 3
+e7: dd 47 e8                fld    XY Stretch           // xy_stretch; 3; 3
+ea: de c1                   faddp  st(1),st             // xy_stretch + 3; 3
+ec: dd 5d e8                fstp   b                    // b = xy_stretch + 3; 3
+ef: dd 47 e8                fld    XY Stretch           // xy_stretch; 3
+f2: de e9                   fsubp  st(1),st             // xy_stretch - 3
+f4: dd 5d e0                fstp   a                    // a = xy_stretch - 3
 
-00000100 90                              NOP
+f7: 90                      nop
 
-00000101 DD03                            FLD x           // x;
-00000103 DC65E8                          FSUB b          // x - b;
-00000106 DD5DF0                          FSTP d          // d = x - b
+d = x - a
 
-00000109 90                              NOP
+f8: dd 03                   fld    x                    // x
+fa: dc 65 e0                fsub   a                    // x - a
+fd: dd 5d f8                fstp   c                    // c = x - a
 
-0000010A DD45F8                          FLD c           // c;
-0000010D DD02                            FLD y           // y; c;
-0000010F DED9                            FCOMPP          // y ? c
-00000111 DFE0                            FNSTSW AX
-00000113 80E441                          AND AH,41
-00000116 7712                            JA 0000012A
+100:    90                      nop
 
-00000118 DD45F8                          FLD c           // c;
-0000011B DD1B                            FSTP x          // x = c
-0000011D DD02                            FLD y           // y;
-0000011F DC65E0                          FSUB a          // y - a;
-00000122 DD1A                            FSTP y          // y = y - a
-00000124 EB26                            JMP 0000014C
+c = x - b
 
-00000126 90                              NOP
-00000127 90                              NOP
-00000128 90                              NOP
-00000129 90                              NOP
+101:    dd 03                   fld    x                // x
+103:    dc 65 e8                fsub   b                // x - b
+106:    dd 5d f0                fstp   d                // d = x - b
 
-0000012A DD45F0                          FLD d           // d;
-0000012D DD02                            FLD y           // y; d;
-0000012F DED9                            FCOMPP          // y ? d
-00000131 DFE0                            FNSTSW AX
-00000133 80E441                          AND AH,41
-00000136 7609                            JBE 00000141
+109:    90                      nop
 
-00000138 90                              NOP
-
-00000139 DD45F0                          FLD d           // d;
-0000013C DD1B                            FSTP x          // x = d
-0000013E EB0C                            JMP 0000014C
-
-00000140 90                              NOP
-
-00000141 DD02                            FLD y           // y;
-00000143 DD45F0                          FLD d           // d; y;
-00000146 DD1A                            FSTP y          // t = d, y;
-00000148 DD1B                            FSTP x          // x = y, y = t
-0000014A D9D0                            FNOP
-
-0000014C DD03                            FLD x           // x;
-0000014E DC4FF0                          FMUL ps         // ps * x;
-00000151 DC77E8                          FDIV s          // ps * x / s;
-00000154 DD1B                            FSTP x          // x = ps * x / s
-
-00000156 DD02                            FLD y           // y;
-00000158 DC4FF0                          FMUL ps         // ps * y;
-0000015B DC77E8                          FDIV s          // ps * y / s;
-0000015E DD1A                            FSTP y          // y = ps * y / s;
-
-00000160 DD01                            FLD z           // z;
-00000162 DC4FF0                          FMUL ps         // ps * z;
-00000165 DD19                            FSTP z          // z = ps * z;
-
-00000167 8BC3                            MOV EAX,EBX
-
-00000169 5F                              POP EDI
-0000016A 5E                              POP ESI
-0000016B 5B                              POP EBX
-
-0000016C 89EC                            MOV ESP,EBP
-0000016E 5D                              POP EBP
-0000016F C20800                          RET 0008
-```
-
-## Code
-
-```rust
-let mut x = 3 * x.abs();
-let mut y = 3 * y.abs();
-let mut z = 3 * z.abs();
-w = 3 * ps * w / s;
-if y > x { let t = x; x = y; y = t; }
-if z > x { let t = x; x = z; z = t; }
-if z > y { let t = y; y = z; z = t; }
-x += ax;
-y += ay;
-z += az;
-let rx = r0 * x + r1 * y + r2 * z;
-let ry = r3 * x + r4 * y + r5 * z;
-let rz = r6 * x + r7 * y + r8 * z;
-x = rx;
-y = ry;
-z = rz;
-z = f - (f - z).abs();
-let a = 3 - s;
-let b = 3 + s;
-let c = x - a;
-let d = x - b;
-if c < y {
+if (y > c) {
     x = c;
     y = y - a;
 }
-else if d > y {
+
+10a:    dd 45 f8                fld    c                // c
+10d:    dd 02                   fld    y                // y; c
+10f:    de d9                   fcompp                  // y ? c (C3 = y == c, C0 = y < c)
+111:    df e0                   fnstsw ax
+113:    80 e4 41                and    ah,0x41          // ZF = (y != c) && (y >= c)
+116:    77 12                   ja     0x12a            // y <= c
+
+118:    dd 45 f8                fld    c                // c
+11b:    dd 1b                   fstp   x                // x = c
+11d:    dd 02                   fld    y                // y
+11f:    dc 65 e0                fsub   a                // y - a
+122:    dd 1a                   fstp   y                // y = y - a
+124:    eb 26                   jmp    0x14c
+
+126:    90                      nop
+127:    90                      nop
+128:    90                      nop
+129:    90                      nop
+
+else if (y <= d) {
     x = d;
 }
+
+12a:    dd 45 f0                fld    d                // d
+12d:    dd 02                   fld    y                // y; d
+12f:    de d9                   fcompp                  // y ? d (C3 = y == d, C0 = y < d)
+131:    df e0                   fnstsw ax
+133:    80 e4 41                and    ah,0x41          // ZF = (y != d) && (y >= d)
+136:    76 09                   jna    0x141            // y > d
+
+138:    90                      nop
+139:    dd 45 f0                fld    d                // d
+13c:    dd 1b                   fstp   x                // x = d
+13e:    eb 0c                   jmp    0x14c
+140:    90                      nop
+
 else {
     x = y;
     y = d;
 }
-x = ps * x / s;
-y = ps * y / s;
-z = ps * z;
+
+141:    dd 02                   fld    y                // y
+143:    dd 45 f0                fld    d                // d; y
+146:    dd 1a                   fstp   y                // y = d; y
+148:    dd 1b                   fstp   x                // x = what y was at 141
+14a:    d9 d0                   fnop
+
+v = post_scale * vec3(v.x / xy_stretch,v.y / xy_stretch,v.z)
+
+14c:    dd 03                   fld    x                // x
+14e:    dc 4f f0                fmul   Post-scale       // post_scale * x
+151:    dc 77 e8                fdiv   XY Stretch       // post_scale * x / xy_stretch
+154:    dd 1b                   fstp   x                // x = post_scale * x / xy_stretch
+156:    dd 02                   fld    y                // y
+158:    dc 4f f0                fmul   Post-scale       // post_scale * y
+15b:    dc 77 e8                fdiv   XY Stretch       // post_scale * y / xy_stretch
+15e:    dd 1a                   fstp   y                // y = post_scale * y / xy_stretch
+160:    dd 01                   fld    z                // z
+162:    dc 4f f0                fmul   Post-scale       // post_scale * z
+165:    dd 19                   fstp   z                // z = post_scale * z
+
+167:    8b c3                   mov    eax,ebx
+169:    5f                      pop    edi
+16a:    5e                      pop    esi
+16b:    5b                      pop    ebx
+16c:    89 ec                   mov    esp,ebp
+16e:    5d                      pop    ebp
+16f:    c2 08 00                ret    0x8
+```
+
+## Code
+
+```glsl
+v = 3 * abs(v);
+dr = 3 * post_scale * dr / xy_stretch;
+
+if (v.y <= v.x) {
+    swap(v.x,v.y);
+}
+if (v.z <= v.x) {
+    swap(v.x,v.z);
+}
+if (v.y >= v.z) {
+    swap(v.y,v.z);
+}
+
+v = rot * (v + v_add);
+
+v.z = z_fold - abs(z_fold - v.z);
+
+a = xy_stretch - 3;
+b = xy_stretch + 3;
+d = x - a;
+c = x - b;
+
+if (y <= d) {
+    x = d;
+    y = y - a;
+}
+else if (y > c) {
+    x = c;
+}
+else {
+    x = y;
+    y = c;
+}
+
+v = post_scale * vec3(v.x / xy_stretch,v.y / xy_stretch,v.z);
 ```
