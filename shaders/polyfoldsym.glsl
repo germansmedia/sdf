@@ -1,4 +1,4 @@
-#define POLY_ORDER 64.0
+#define POLY_ORDER 2.0
 
 void polyfoldsym(inout VEC3 v,inout FLOAT dr,VEC3 c) {
     FLOAT t = POLY_ORDER * atan(v.y,v.x);

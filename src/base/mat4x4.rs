@@ -34,35 +34,6 @@ macro_rules! mat4x4_impl {
         $(
             impl Mat4x4<$t> {
 
-                pub fn perspective_projection(l: $t,r: $t,t: $t,b: $t,n: $t,f: $t) -> Mat4x4<$t> {
-                    Mat4x4 {
-                        x: Vec4 {
-                            x: (n + n) / (r - l),
-                            y: <$t>::ZERO,
-                            z: <$t>::ZERO,
-                            w: <$t>::ZERO,
-                        },
-                        y: Vec4 {
-                            x: <$t>::ZERO,
-                            y: (n + n) / (t - b),
-                            z: <$t>::ZERO,
-                            w: <$t>::ZERO,
-                        },
-                        z: Vec4 {
-                            x: (r + l) / (r - l),
-                            y: (t + b) / (t - b),
-                            z: -(f + n) / (f - n),
-                            w: -<$t>::ONE,
-                        },
-                        w: Vec4 {
-                            x: <$t>::ZERO,
-                            y: <$t>::ZERO,
-                            z: -f * (n + n) / (f - n),
-                            w: <$t>::ZERO,
-                        }
-                    }
-                }
-
                 pub fn from_mv(m: Mat3x3<$t>,v: Vec3<$t>) -> Mat4x4<$t> {
                     Mat4x4 {
                         x: Vec4 {
@@ -279,10 +250,10 @@ macro_rules! mat4x4_impl {
                 type Output = Vec4<$t>;
                 fn mul(self,other: Vec4<$t>) -> Self::Output {
                     Vec4 {
-                        x: self.x.x * other.x + self.x.y * other.y + self.x.z * other.z + self.x.w * other.w,
-                        y: self.y.x * other.x + self.y.y * other.y + self.y.z * other.z + self.y.w * other.w,
-                        z: self.z.x * other.x + self.z.y * other.y + self.z.z * other.z + self.z.w * other.w,
-                        w: self.w.x * other.x + self.w.y * other.y + self.w.z * other.z + self.w.w * other.w,
+                        x: self.x.x * other.x + self.y.x * other.y + self.z.x * other.z + self.w.x * other.w,
+                        y: self.x.y * other.x + self.y.y * other.y + self.z.y * other.z + self.w.y * other.w,
+                        z: self.x.z * other.x + self.y.z * other.y + self.z.z * other.z + self.w.z * other.w,
+                        w: self.x.w * other.x + self.y.w * other.y + self.z.w * other.z + self.w.w * other.w,
                     }
                 }
             }
@@ -292,30 +263,10 @@ macro_rules! mat4x4_impl {
                 type Output = Mat4x4<$t>;
                 fn mul(self,other: Mat4x4<$t>) -> Self::Output {
                     Mat4x4 {
-                        x: Vec4 {
-                            x: self.x.x * other.x.x + self.x.y * other.y.x + self.x.z * other.z.x + self.x.w * other.w.x,
-                            y: self.x.x * other.x.y + self.x.y * other.y.y + self.x.z * other.z.y + self.x.w * other.w.y,
-                            z: self.x.x * other.x.z + self.x.y * other.y.z + self.x.z * other.z.z + self.x.w * other.w.z,
-                            w: self.x.x * other.x.w + self.x.y * other.y.w + self.x.z * other.z.w + self.x.w * other.w.w,
-                        },
-                        y: Vec4 {
-                            x: self.y.x * other.x.x + self.y.y * other.y.x + self.y.z * other.z.x + self.y.w * other.w.x,
-                            y: self.y.x * other.x.y + self.y.y * other.y.y + self.y.z * other.z.y + self.y.w * other.w.y,
-                            z: self.y.x * other.x.z + self.y.y * other.y.z + self.y.z * other.z.z + self.y.w * other.w.z,
-                            w: self.y.x * other.x.w + self.y.y * other.y.w + self.y.z * other.z.w + self.y.w * other.w.w,
-                        },
-                        z: Vec4 {
-                            x: self.z.x * other.x.x + self.z.y * other.y.x + self.z.z * other.z.x + self.z.w * other.w.x,
-                            y: self.z.x * other.x.y + self.z.y * other.y.y + self.z.z * other.z.y + self.z.w * other.w.y,
-                            z: self.z.x * other.x.z + self.z.y * other.y.z + self.z.z * other.z.z + self.z.w * other.w.z,
-                            w: self.z.x * other.x.w + self.z.y * other.y.w + self.z.z * other.z.w + self.z.w * other.w.w,
-                        },
-                        w: Vec4 {
-                            x: self.w.x * other.x.x + self.w.y * other.y.x + self.w.z * other.z.x + self.w.w * other.w.x,
-                            y: self.w.x * other.x.y + self.w.y * other.y.y + self.w.z * other.z.y + self.w.w * other.w.y,
-                            z: self.w.x * other.x.z + self.w.y * other.y.z + self.w.z * other.z.z + self.w.w * other.w.z,
-                            w: self.w.x * other.x.w + self.w.y * other.y.w + self.w.z * other.z.w + self.w.w * other.w.w,
-                        }
+                        x: self * other.x,
+                        y: self * other.y,
+                        z: self * other.z,
+                        w: self * other.w,
                     }
                 }
             }
@@ -323,48 +274,18 @@ macro_rules! mat4x4_impl {
             // matrix *= scalar
             impl MulAssign<$t> for Mat4x4<$t> {
                 fn mul_assign(&mut self,other: $t) {
-                    self.x.x *= other;
-                    self.x.y *= other;
-                    self.x.z *= other;
-                    self.x.w *= other;
-                    self.y.x *= other;
-                    self.y.y *= other;
-                    self.y.z *= other;
-                    self.y.w *= other;
-                    self.z.x *= other;
-                    self.z.y *= other;
-                    self.z.z *= other;
-                    self.z.w *= other;
-                    self.w.x *= other;
-                    self.w.y *= other;
-                    self.w.z *= other;
-                    self.w.w *= other;
+                    self.x *= other;
+                    self.y *= other;
+                    self.z *= other;
+                    self.w *= other;
                 }
             }
 
             // matrix *= matrix
             impl MulAssign<Mat4x4<$t>> for Mat4x4<$t> {
                 fn mul_assign(&mut self,other: Mat4x4<$t>) {
-                    let xx = self.x.x * other.x.x + self.x.y * other.y.x + self.x.z * other.z.x + self.x.w * other.w.x;
-                    let xy = self.x.x * other.x.y + self.x.y * other.y.y + self.x.z * other.z.y + self.x.w * other.w.y;
-                    let xz = self.x.x * other.x.z + self.x.y * other.y.z + self.x.z * other.z.z + self.x.w * other.w.z;
-                    let xw = self.x.x * other.x.w + self.x.y * other.y.w + self.x.z * other.z.w + self.x.w * other.w.w;
-                    let yx = self.y.x * other.x.x + self.y.y * other.y.x + self.y.z * other.z.x + self.y.w * other.w.x;
-                    let yy = self.y.x * other.x.y + self.y.y * other.y.y + self.y.z * other.z.y + self.y.w * other.w.y;
-                    let yz = self.y.x * other.x.z + self.y.y * other.y.z + self.y.z * other.z.z + self.y.w * other.w.z;
-                    let yw = self.y.x * other.x.w + self.y.y * other.y.w + self.y.z * other.z.w + self.y.w * other.w.w;
-                    let zx = self.z.x * other.x.x + self.z.y * other.y.x + self.z.z * other.z.x + self.z.w * other.w.x;
-                    let zy = self.z.x * other.x.y + self.z.y * other.y.y + self.z.z * other.z.y + self.z.w * other.w.y;
-                    let zz = self.z.x * other.x.z + self.z.y * other.y.z + self.z.z * other.z.z + self.z.w * other.w.z;
-                    let zw = self.z.x * other.x.w + self.z.y * other.y.w + self.z.z * other.z.w + self.z.w * other.w.w;
-                    let wx = self.w.x * other.x.x + self.w.y * other.y.x + self.w.z * other.z.x + self.w.w * other.w.x;
-                    let wy = self.w.x * other.x.y + self.w.y * other.y.y + self.w.z * other.z.y + self.w.w * other.w.y;
-                    let wz = self.w.x * other.x.z + self.w.y * other.y.z + self.w.z * other.z.z + self.w.w * other.w.z;
-                    let ww = self.w.x * other.x.w + self.w.y * other.y.w + self.w.z * other.z.w + self.w.w * other.w.w;
-                    self.x = Vec4 { x: xx,y: xy,z: xz,w: xw, };
-                    self.y = Vec4 { x: yx,y: yy,z: yz,w: yw, };
-                    self.z = Vec4 { x: zx,y: zy,z: zz,w: zw, };
-                    self.w = Vec4 { x: wx,y: wy,z: wz,w: ww, };
+                    let m = *self * other;
+                    *self = m;
                 }
             }
 
@@ -474,6 +395,66 @@ macro_rules! mat4x4_real_impl {
     ($($t:ty)+) => {
         $(
             impl Mat4x4<$t> {
+
+                pub fn perspective(fovy: $t,aspect: $t,n: $t,f: $t) -> Mat4x4<$t> {
+                    let f = (0.5 * fovy).tan();
+                    Mat4x4 {
+                        x: Vec4 {
+                            x: aspect / f,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        y: Vec4 {
+                            x: 0.0,
+                            y: 1.0 / f,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        z: Vec4 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -(f + n) / (n - f),
+                            w: -1.0,
+                        },
+                        w: Vec4 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -2.0 * f * n / (n - f),
+                            w: 0.0,
+                        },
+                    }
+                }
+    
+                pub fn frustum(l: $t,r: $t,t: $t,b: $t,n: $t,f: $t) -> Mat4x4<$t> {
+                    Mat4x4 {
+                        x: Vec4 {
+                            x: (n + n) / (r - l),
+                            y: 0.0,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        y: Vec4 {
+                            x: 0.0,
+                            y: (n + n) / (t - b),
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        z: Vec4 {
+                            x: (r + l) / (r - l),
+                            y: (t + b) / (t - b),
+                            z: -(f + n) / (f - n),
+                            w: -1.0,
+                        },
+                        w: Vec4 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -2.0 * f * n / (f - n),
+                            w: 0.0,
+                        }
+                    }
+                }
+    
                 pub fn inv(self) -> Self {
                     let a = self.x.x;
                     let e = self.x.y;

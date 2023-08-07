@@ -200,9 +200,9 @@ macro_rules! mat3x3_impl {
                 type Output = Vec3<$t>;
                 fn mul(self,other: Vec3<$t>) -> Self::Output {
                     Vec3 {
-                        x: self.x.x * other.x + self.x.y * other.y + self.x.z * other.z,
-                        y: self.y.x * other.x + self.y.y * other.y + self.y.z * other.z,
-                        z: self.z.x * other.x + self.z.y * other.y + self.z.z * other.z,
+                        x: self.x.x * other.x + self.y.x * other.y + self.z.x * other.z,
+                        y: self.x.y * other.x + self.y.y * other.y + self.z.y * other.z,
+                        z: self.x.z * other.x + self.y.z * other.y + self.z.z * other.z,
                     }
                 }
             }
@@ -212,21 +212,9 @@ macro_rules! mat3x3_impl {
                 type Output = Mat3x3<$t>;
                 fn mul(self,other: Mat3x3<$t>) -> Self::Output {
                     Mat3x3 {
-                        x: Vec3 {
-                            x: self.x.x * other.x.x + self.x.y * other.y.x + self.x.z * other.z.x,
-                            y: self.x.x * other.x.y + self.x.y * other.y.y + self.x.z * other.z.y,
-                            z: self.x.x * other.x.z + self.x.y * other.y.z + self.x.z * other.z.z,
-                        },
-                        y: Vec3 {
-                            x: self.y.x * other.x.x + self.y.y * other.y.x + self.y.z * other.z.x,
-                            y: self.y.x * other.x.y + self.y.y * other.y.y + self.y.z * other.z.y,
-                            z: self.y.x * other.x.z + self.y.y * other.y.z + self.y.z * other.z.z,
-                        },
-                        z: Vec3 {
-                            x: self.z.x * other.x.x + self.z.y * other.y.x + self.z.z * other.z.x,
-                            y: self.z.x * other.x.y + self.z.y * other.y.y + self.z.z * other.z.y,
-                            z: self.z.x * other.x.z + self.z.y * other.y.z + self.z.z * other.z.z,
-                        },
+                        x: self * other.x,
+                        y: self * other.y,
+                        z: self * other.z,
                     }
                 }
             }
@@ -234,33 +222,17 @@ macro_rules! mat3x3_impl {
             // matrix *= scalar
             impl MulAssign<$t> for Mat3x3<$t> {
                 fn mul_assign(&mut self,other: $t) {
-                    self.x.x *= other;
-                    self.x.y *= other;
-                    self.x.z *= other;
-                    self.y.x *= other;
-                    self.y.y *= other;
-                    self.y.z *= other;
-                    self.z.x *= other;
-                    self.z.y *= other;
-                    self.z.z *= other;
+                    self.x *= other;
+                    self.y *= other;
+                    self.z *= other;
                 }
             }
 
             // matrix *= matrix
             impl MulAssign<Mat3x3<$t>> for Mat3x3<$t> {
                 fn mul_assign(&mut self,other: Mat3x3<$t>) {
-                    let xx = self.x.x * other.x.x + self.x.y * other.y.x + self.x.z * other.z.x;
-                    let xy = self.x.x * other.x.y + self.x.y * other.y.y + self.x.z * other.z.y;
-                    let xz = self.x.x * other.x.z + self.x.y * other.y.z + self.x.z * other.z.z;
-                    let yx = self.y.x * other.x.x + self.y.y * other.y.x + self.y.z * other.z.x;
-                    let yy = self.y.x * other.x.y + self.y.y * other.y.y + self.y.z * other.z.y;
-                    let yz = self.y.x * other.x.z + self.y.y * other.y.z + self.y.z * other.z.z;
-                    let zx = self.z.x * other.x.x + self.z.y * other.y.x + self.z.z * other.z.x;
-                    let zy = self.z.x * other.x.y + self.z.y * other.y.y + self.z.z * other.z.y;
-                    let zz = self.z.x * other.x.z + self.z.y * other.y.z + self.z.z * other.z.z;
-                    self.x = Vec3 { x: xx,y: xy,z: xz, };
-                    self.y = Vec3 { x: yx,y: yy,z: yz, };
-                    self.z = Vec3 { x: zx,y: zy,z: zz, };
+                    let m = *self * other;
+                    *self = m;
                 }
             }
 
@@ -306,6 +278,27 @@ macro_rules! mat3x3_real_impl {
     ($($t:ty)+) => {
         $(
             impl Mat3x3<$t> {
+
+                pub fn from_quaternion(q: Quaternion<$t>) -> Mat3x3<$t> {
+                    Mat3x3 {
+                        x: Vec3 {
+                            x: 1.0 - 2.0 * q.j * q.j - 2.0 * q.k * q.k,
+                            y: 2.0 * q.i * q.j + 2.0 * q.k * q.r,
+                            z: 2.0 * q.i * q.k - 2.0 * q.j * q.r,
+                        },
+                        y: Vec3 {
+                            x: 2.0 * q.i * q.j - 2.0 * q.k * q.r,
+                            y: 1.0 - 2.0 * q.i * q.i - 2.0 * q.k * q.k,
+                            z: 2.0 * q.j * q.k + 2.0 * q.i * q.r,
+                        },
+                        z: Vec3 {
+                            x: 2.0 * q.i * q.k + 2.0 * q.j * q.r,
+                            y: 2.0 * q.j * q.k - 2.0 * q.i * q.r,
+                            z: 1.0 - 2.0 * q.i * q.i - 2.0 * q.j * q.j,
+                        },
+                    }
+                }
+
                 pub fn inv(self) -> Self {
                     let a = self.x.x;
                     let d = self.x.y;
@@ -357,6 +350,40 @@ macro_rules! mat3x3_real_impl {
             impl DivAssign<Mat3x3<$t>> for Mat3x3<$t> {
                 fn div_assign(&mut self,other: Mat3x3<$t>) {
                     *self *= other.inv()
+                }
+            }
+
+            impl From<Quaternion<$t>> for Mat3x3<$t> {
+                fn from(value: Quaternion<$t>) -> Self {
+                    let x2 = value.i + value.i;
+                    let y2 = value.j + value.j;
+                    let z2 = value.k + value.k;
+                    let xx2 = value.i * x2;
+                    let yy2 = value.j * y2;
+                    let zz2 = value.k * z2;
+                    let yz2 = value.j * z2;
+                    let wx2 = value.r * x2;
+                    let xy2 = value.i * y2;
+                    let wz2 = value.r * z2;
+                    let xz2 = value.i * z2;
+                    let wy2 = value.r * y2;
+                    Mat3x3 {
+                        x: Vec3 {
+                            x: <$t>::ONE - yy2 - zz2,
+                            y: xy2 + wz2,
+                            z: xz2 - wy2,
+                        },
+                        y: Vec3 {
+                            x: xy2 - wz2,
+                            y: <$t>::ONE - xx2 - zz2,
+                            z: yz2 + wx2,
+                        },
+                        z: Vec3 {
+                            x: xz2 + wy2,
+                            y: yz2 - wx2,
+                            z: <$t>::ONE - xx2 - yy2,
+                        },
+                    }
                 }
             }
         )+

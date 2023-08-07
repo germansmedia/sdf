@@ -152,8 +152,8 @@ macro_rules! mat2x2_impl {
                 type Output = Vec2<$t>;
                 fn mul(self,other: Vec2<$t>) -> Self::Output {
                     Vec2 {
-                        x: self.x.x * other.x + self.x.y * other.y,
-                        y: self.y.x * other.x + self.y.y * other.y,
+                        x: self.x.x * other.x + self.y.x * other.y,
+                        y: self.x.y * other.x + self.y.y * other.y,
                     }
                 }
             }
@@ -163,14 +163,8 @@ macro_rules! mat2x2_impl {
                 type Output = Mat2x2<$t>;
                 fn mul(self,other: Mat2x2<$t>) -> Self::Output {
                     Mat2x2 {
-                        x: Vec2 {
-                            x: self.x.x * other.x.x + self.x.y * other.y.x,
-                            y: self.x.x * other.x.y + self.x.y * other.y.y,
-                        },
-                        y: Vec2 {
-                            x: self.y.x * other.x.x + self.y.y * other.y.x,
-                            y: self.y.x * other.x.y + self.y.y * other.y.y,
-                        },
+                        x: self * other.x,
+                        y: self * other.y,
                     }
                 }
             }
@@ -178,22 +172,16 @@ macro_rules! mat2x2_impl {
             // matrix *= scalar
             impl MulAssign<$t> for Mat2x2<$t> {
                 fn mul_assign(&mut self,other: $t) {
-                    self.x.x *= other;
-                    self.x.y *= other;
-                    self.y.x *= other;
-                    self.y.y *= other;
+                    self.x *= other;
+                    self.y *= other;
                 }
             }
 
             // matrix *= matrix
             impl MulAssign<Mat2x2<$t>> for Mat2x2<$t> {
                 fn mul_assign(&mut self,other: Mat2x2<$t>) {
-                    let xx = self.x.x * other.x.x + self.x.y * other.y.x;
-                    let xy = self.x.x * other.x.y + self.x.y * other.y.y;
-                    let yx = self.y.x * other.x.x + self.y.y * other.y.x;
-                    let yy = self.y.x * other.x.y + self.y.y * other.y.y;
-                    self.x = Vec2 { x: xx,y: xy, };
-                    self.y = Vec2 { x: yx,y: yy, };
+                    let m = *self * other;
+                    *self = m;
                 }
             }
 

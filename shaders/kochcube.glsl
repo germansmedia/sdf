@@ -18,20 +18,20 @@ void kochcube(inout VEC3 v,inout FLOAT dr,VEC3 c) {
     if (v.z > v.x) {
         v = v.zyx;
     }
-    if (v.y > v.z) {
+    if (v.z > v.y) {
         v = v.xzy;
     }
     v = KOCH_ROTATION * (v + KOCH_ADD);
     v.z = KOCH_FOLD - abs(KOCH_FOLD - v.z);
     FLOAT ta = KOCH_STRETCH - 3;
     FLOAT tb = KOCH_STRETCH + 3;
-    FLOAT td = v.x - ta;
-    FLOAT tc = v.x - tb;
-    if (v.y > tc) {
+    FLOAT tc = v.x - ta;
+    FLOAT td = v.x - tb;
+    if (tc < v.y) {
         v.x = tc;
         v.y -= ta;
     }
-    else if (v.y <= td) {
+    else if (td > v.y) {
         v.x = td;
     }
     else {

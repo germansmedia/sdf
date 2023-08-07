@@ -2,10 +2,9 @@
 
 layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 
-layout (binding = 0) readonly uniform WhatIsThisName {
-    vec4 state_eye;
-    mat4 state_world;
-    vec4 state_background_color;
+layout (binding = 0) readonly uniform State {
+    mat4 view;
+    vec4 refs;
 };
 
 layout (binding = 1) writeonly uniform image2D out_frame;
@@ -23,33 +22,53 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #endif
 
 // marching parameters
-#define MAX_STEPS 1000
-#define CLOSEST_DISTANCE 0.1
+#define MAX_STEPS 50
+#define CLOSEST_DISTANCE 0.01
 #define MAX_DISTANCE 100.0
-#define RAY_STEP_MULTIPLIER 0.1
-#define NORMAL_STEP_MULTIPLIER 0.01
+#define RAY_STEP_MULTIPLIER 0.01
+#define NORMAL_STEP_MULTIPLIER 0.0001
 
 // iteration parameters
-#define MIN_ITERATIONS 4
-#define MAX_ITERATIONS 60
-#define ESCAPE_DISTANCE 100
+#define MAX_ITERATIONS 30
+#define ESCAPE_DISTANCE 10
 
-// scene
-#define POS vec3(0.0,0.0,30.0)
+// from MB3D: this seems to be at most 0.3
+#define Z_STEP_DIV 0.3
+
+// from MB3D: this is min(sqrt(Z_STEP_DIV),0.9)
+#define DE_SUB min(sqrt(Z_STEP_DIV),0.9)
+
+// from MB3D: this is 0.5 * max(width,height) * sqrt(Z_STEP_DIV + 0.001)
+#define MCTMH04ZSD (512.0 * sqrt(Z_STEP_DIV + 0.001))
+
+// from MB3D: this seems to be the value from the UI
+#define DE_STOP 0.01
+
+// from MB3D: this is max(0.0,fovy * pi / 180) / height
+#define DE_STOP_FACTOR 0.1
 
 // rendering
-#define OBJECT_COLOR vec3(0.1,0.2,0.9)
+#define OBJECT_COLOR vec3(0.9,0.8,0.2)
 #define TRAP_COLOR vec3(0.8,0.8,0.8)
-#define LIGHT1_POS vec3(-5,-7,-5)
-#define LIGHT1_COLOR vec3(1.0,0.9,0.7)
-#define LIGHT2_POS vec3(5,-4,-3)
-#define LIGHT2_COLOR vec3(0.3,0.1,0.5)
-#define BACKGROUND_COLOR vec3(0.0,0.1,0.0)
+#define LIGHT_POS vec3(-2,-6,-5)
+#define LIGHT_COLOR vec3(1.0,0.9,0.7)
+#define BACKGROUND_COLOR vec3(0.3,0.4,0.5)
 #define GLOW_COLOR vec3(0.4,0.4,0.4)
 #define AMBIENT_COLOR vec3(0.4,0.4,0.4)
-#define SHADOW_OFFSET 0.0
-#define SHADOW_SHARPNESS 40.0
+#define SHADOW_OFFSET 0.001
+#define SHADOW_SHARPNESS 60.0
 #define GLOW_SHARPNESS 40.0
+
+vec3 object_color[8] = {
+    vec3(0.0,0.0,0.0),
+    vec3(0.0,0.0,1.0),
+    vec3(0.0,1.0,0.0),
+    vec3(0.0,1.0,1.0),
+    vec3(1.0,0.0,0.0),
+    vec3(1.0,0.0,1.0),
+    vec3(1.0,1.0,0.0),
+    vec3(1.0,1.0,1.0),
+};
 
 #include "mandelbulb.glsl"
 #include "quickdudley.glsl"
@@ -89,75 +108,66 @@ FLOAT do_iterations(VEC3 c,out int i) {
     FLOAT r = 0.0;
     FLOAT dr = 1.0;
     i = 0;
+
     /*
     reciprocalz3b(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
     r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
+    if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
+    if (i > MAX_ITERATIONS) return r / dr;
 
     rotate4d(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
     r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
+    if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
+    if (i > MAX_ITERATIONS) return r / dr;
 
     polyfoldsym(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
     r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
+    if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
+    if (i > MAX_ITERATIONS) return r / dr;
 
     amazingbox2(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
     r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
+    if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
+    if (i > MAX_ITERATIONS) return r / dr;
 
     amazingbox2(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
     r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
+    if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
+    if (i > MAX_ITERATIONS) return r / dr;
 
     amazingbox2(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
     r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
+    if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
+    if (i > MAX_ITERATIONS) return r / dr;
 
     amazingbox2(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
     r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
+    if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
+    if (i > MAX_ITERATIONS) return r / dr;
     */
 
-    kochcube(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
-    r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
-    i++;
+    while (i < 100) {
+        amazingbox2(v,dr,c);
+        //kochcube(v,dr,c);
+        //mandelbox(v,dr,c);
+        r = length(v);
+        if (r > ESCAPE_DISTANCE) break;
+        i++;
+        if (i >= MAX_ITERATIONS) break;
+    }
 
-    kochcube(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
-    r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
-    i++;
-
-    kochcube(v,dr,c);
-    if (i > MAX_ITERATIONS) return r / abs(dr);
-    r = length(v);
-    if (r > ESCAPE_DISTANCE) return r / abs(dr);
-    i++;
-
-    return r / abs(dr);
+    return r / dr;
 }
 
 float estimate_distance(vec3 p,out int i) {
-    VEC3 c = p - POS;
-    //c = rotate_y(c,1.2);
-    return do_iterations(c,i);
+    return do_iterations(p,i);
 }
 
 vec3 estimate_normal(vec3 p) {
@@ -188,27 +198,22 @@ vec2 phong(vec3 p,vec3 light_pos) {
     float distance_to_light = length(l);
     vec3 n = estimate_normal(p);
     float diff = dot(n,dp);
-    if (diff <= 0) {
+    if (diff < 0) {
         return vec2(0,0);
     }
+    int i = 0;
     p += SHADOW_OFFSET * dp;
-    float total_distance = 0.0;
+    float total_distance = SHADOW_OFFSET;
     float closest_distance = MAX_DISTANCE;
-    for (int steps = 0; steps < MAX_STEPS; steps++) {
-        int i;
-        float de = float(estimate_distance(p,i));
-        p += de * dp;
-        total_distance += de;
-        if (total_distance > MAX_DISTANCE) {
-            break;
-        }
-        distance_to_light -= de;
-        if (distance_to_light <= 0.0) {
-            break;
-        }
-        if (de < 0.5 * CLOSEST_DISTANCE) {
+    float de = float(estimate_distance(p,i));
+    while ((total_distance < MAX_DISTANCE) && (distance_to_light > 0.0)) {
+        if (de < 0.5 * DE_STOP) {
             return vec2(0,0);
         }
+        total_distance += de;
+        distance_to_light -= de;
+        p += de * dp;
+        de = float(estimate_distance(p,i));
         closest_distance = min(closest_distance,de / total_distance);
     }
     float spec = pow(dot(normalize(dot(n,l) * n - normalize(l)),dp),128.0);
@@ -218,36 +223,53 @@ vec2 phong(vec3 p,vec3 light_pos) {
     //return vec2(diff,0.0);
 }
 
-vec4 march(vec3 p,vec3 dp) {
+vec4 march(vec3 p,vec3 dp,vec3 light_pos) {
 
     float total_distance = 0.0;
     bool object_visible = false;
     int steps = 0;
-    for (; steps < MAX_STEPS; steps++) {
-        int i;
-        float de = RAY_STEP_MULTIPLIER * float(estimate_distance(p,i));
-        p += de * dp;
-        total_distance += de;
-        if (total_distance > MAX_DISTANCE) {
-            // nothing found
-            break;
+    int i = 0;
+    float de_stop = DE_STOP;
+    float de = float(estimate_distance(p,i));
+    if ((i >= MAX_ITERATIONS) || (de < de_stop)) {
+        object_visible = true;
+    }
+    else {
+        float last_step_width = de * Z_STEP_DIV;
+        while (total_distance < MAX_DISTANCE) {
+            if (i >= MAX_ITERATIONS) {
+                float half_de = 0.5 * de;
+                total_distance -= half_de;
+                p -= half_de * dp;
+                de = float(estimate_distance(p,i));
+            }
+            if ((i >= MAX_ITERATIONS) || (de < de_stop)) {
+                object_visible = true;
+                break;
+            }
+            else {
+                /*float last_de = de;
+                de = max(0.11,(de - DE_SUB * de_stop) * Z_STEP_DIV);
+                float de1 = max(0.4,de_stop) * MCTMH04ZSD;
+                if (de1 < de) {
+                    de = de1;
+                }
+                last_step_width = de;*/
+                total_distance += de;
+                p += de * dp;
+                //de_stop = DE_STOP * (1.0 + total_distance * DE_STOP_FACTOR);
+                de = float(estimate_distance(p,i));
+                /*if (de > last_de + last_step_width) {
+                    de = last_de + last_step_width;
+                }*/
+            }
+            steps += 1;
         }
-        if (de < CLOSEST_DISTANCE) {
-            object_visible = true;
-            break;
-        }
-        /*if (i > MAX_ITERATIONS) {
-            // overshot object, so step back half a step
-            FLOAT half_step = 0.5 * de;
-            total_distance -= half_step;
-            p -= half_step * dp;
-            // adjust de_stop to account for distance
-            de = estimate_distance(p,i);
-        }*/
     }
 
     vec3 pixel = BACKGROUND_COLOR;
     if (object_visible) {
+        //pixel = object_color[i & 7];
         pixel = OBJECT_COLOR;
 
         //smallest_trap = clamp(log(smallest_trap),0.0,1.0);
@@ -255,11 +277,11 @@ vec4 march(vec3 p,vec3 dp) {
 
         // ambient occlusion
         float ao = 1 - float(steps) / float(MAX_STEPS);
-        pixel = ao * ao * pixel;
+        pixel = ao * pixel;
 
         // lighting
-        vec2 ph = phong(p,LIGHT1_POS);
-        pixel = (AMBIENT_COLOR + ph.x * LIGHT1_COLOR) * pixel + ph.y * LIGHT1_COLOR;
+        vec2 ph = phong(p,light_pos);
+        pixel = (AMBIENT_COLOR + ph.x * LIGHT_COLOR) * pixel + ph.y * LIGHT_COLOR;
 
         // fog
         float f = total_distance / MAX_DISTANCE;
@@ -274,17 +296,21 @@ vec4 march(vec3 p,vec3 dp) {
 
 void main() {
 
-    // get pixel coordinates
-    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    // construct a screen at z = 1
+    float f = tan(0.5 * refs.z);  // vertical FOV
+    float aspect = refs.x / refs.y;
+    float mx = f * aspect;
+    float my = f;
+    float x = -1.0 + 2.0 * (float(gl_GlobalInvocationID.x) + 0.5) / refs.x;
+    float y = -1.0 + 2.0 * (float(gl_GlobalInvocationID.y) + 0.5) / refs.y;
+    vec4 screen = view * vec4(mx * x,my * y,1.0,1.0);
+    vec4 origin = view * vec4(0.0,0.0,0.0,1.0);
+    vec3 dp = normalize(screen.xyz - origin.xyz);
 
-    // starting point
-    vec3 p = vec3(0.0,0.0,0.0);
-
-    // starting direction vector
-    vec3 dp = normalize(vec3(float(coord.x),float(coord.y),0.0) - state_eye.xyz);
+    vec3 light_pos = origin.xyz;
 
     // DO IT!
-    vec4 color = march(p,dp);
+    vec4 color = march(origin.xyz,dp,light_pos);
 
-    imageStore(out_frame,coord,color);
+    imageStore(out_frame,ivec2(gl_GlobalInvocationID.xy),color);
 }
