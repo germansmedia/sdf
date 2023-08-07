@@ -58,15 +58,28 @@ const KEY_ARROW_UP: u32 = 111;
 const KEY_ARROW_DOWN: u32 = 116;
 const KEY_ARROW_LEFT: u32 = 113;
 const KEY_ARROW_RIGHT: u32 = 114;
+const KEY_Q: u32 = 24;
+const KEY_A: u32 = 38;
+const KEY_W: u32 = 25;
+const KEY_S: u32 = 39;
+const KEY_E: u32 = 26;
+const KEY_D: u32 = 40;
+const KEY_R: u32 = 27;
+const KEY_F: u32 = 41;
 
 const FOVY_DEG: f32 = 40.0;
 const FORWARD_SENSITIVITY: f32 = 0.1;
 const STRAFE_SENSITIVITY: f32 = 0.1;
 const POINTER_SENSITIVITY: f32 = 0.001;
+const ITERATIONS_SENSITIVITY: f32 = 0.1;
+const Z_STEP_SENSITIVITY: f32 = 0.01;
+const DE_STOP_SENSITIVITY: f32 = 0.99;
+const FACTOR_SENSITIVITY: f32 = 0.99;
 
 struct State {
     view: Mat4x4<f32>,  // view transformation
     refs: Vec4<f32>,  // x: r.s.x as f32,y: r.s.y as f32,z: fovy,w: unused
+    params: Vec4<f32>,  // x: max. iterations, y: z_step_div, z: initial de_stop, w: de_stop_factor
 }
 
 fn main() -> Result<(),String> {
@@ -108,7 +121,18 @@ fn main() -> Result<(),String> {
     let mut dir = Quaternion::<f32>::ONE;
     let mut state = State {
         view: Mat4x4::<f32>::from_mv(Mat3x3::from(dir),pos),
-        refs: Vec4::<f32> { x: r.s.x as f32,y: r.s.y as f32,z: FOVY_DEG.to_radians(),w: 0.0, },
+        refs: Vec4::<f32> {
+            x: r.s.x as f32,
+            y: r.s.y as f32,
+            z: FOVY_DEG.to_radians(),
+            w: 0.0,
+        },
+        params: Vec4::<f32> {
+            x: 30.0,
+            y: 0.3,
+            z: 0.0001,
+            w: 1.0,
+        },
     };
 
     let uniform_buffer = Rc::new(gpu.create_uniform_buffer(&state)?);
@@ -121,6 +145,7 @@ fn main() -> Result<(),String> {
     let rendered_semaphore = Rc::new(gpu.create_semaphore()?);
 
     let mut delta: Vec2<f32> = Vec2::ZERO;
+    let mut params_delta: Vec4<f32> = Vec4 { x: 0.0,y: 0.0,z: 1.0,w: 1.0, };
     let mut prev_position: Vec2<f32> = Vec2::ZERO;
     let mut left_pressed = false;
     let mut close_clicked = false;
@@ -152,6 +177,30 @@ fn main() -> Result<(),String> {
                                 KEY_ARROW_RIGHT => {
                                     delta.x = STRAFE_SENSITIVITY;
                                 },
+                                KEY_Q => {
+                                    params_delta.x = ITERATIONS_SENSITIVITY;
+                                },
+                                KEY_A => {
+                                    params_delta.x = -ITERATIONS_SENSITIVITY;
+                                },
+                                KEY_W => {
+                                    params_delta.y = Z_STEP_SENSITIVITY;
+                                },
+                                KEY_S => {
+                                    params_delta.y = -Z_STEP_SENSITIVITY;
+                                },
+                                KEY_E => {
+                                    params_delta.z = DE_STOP_SENSITIVITY;
+                                },
+                                KEY_D => {
+                                    params_delta.z = 1.0 / DE_STOP_SENSITIVITY;
+                                },
+                                KEY_R => {
+                                    params_delta.w = FACTOR_SENSITIVITY;
+                                },
+                                KEY_F => {
+                                    params_delta.w = 1.0 / FACTOR_SENSITIVITY;
+                                }
                                 _ => {
                                     println!("pressed {}",code);
                                 },
@@ -165,6 +214,18 @@ fn main() -> Result<(),String> {
                                 KEY_ARROW_LEFT | KEY_ARROW_RIGHT => {
                                     delta.x = 0.0;
                                 },
+                                KEY_Q | KEY_A => {
+                                    params_delta.x = 0.0;
+                                },
+                                KEY_W | KEY_S => {
+                                    params_delta.y = 0.0;
+                                },
+                                KEY_E | KEY_D => {
+                                    params_delta.z = 1.0;
+                                },
+                                KEY_R | KEY_F => {
+                                    params_delta.w = 1.0;
+                                }
                                 _ => {
                                     println!("released {}",code);
                                 },
@@ -188,7 +249,7 @@ fn main() -> Result<(),String> {
                         PointerEvent::Move { position,.. } => {
                             if left_pressed {
                                 let dp = position - prev_position;
-                                dir *= Quaternion::<f32>::from_euler(POINTER_SENSITIVITY * Vec3 { x: -dp.y,y: dp.x,z: 0.0, });
+                                dir *= Quaternion::<f32>::from_euler(-POINTER_SENSITIVITY * dp.y,POINTER_SENSITIVITY * dp.x,0.0);
                                 prev_position = position;
                             }
                         },
@@ -215,6 +276,27 @@ fn main() -> Result<(),String> {
         let right = rotation * Vec3::<f32> { x: 1.0,y: 0.0,z: 0.0, };
         pos += delta.y * forward + delta.x * right;
         state.view = Mat4x4::<f32>::from_mv(rotation,pos);
+
+        // process parameter updates
+        state.params.x = (state.params.x + params_delta.x).clamp(7.0,60.0);
+        state.params.y = (state.params.y + params_delta.y).clamp(0.01,0.5);
+        state.params.z = (state.params.z * params_delta.z).clamp(0.00001,0.1);
+        state.params.w = (state.params.w * params_delta.w).clamp(0.00001,0.1);
+
+        if params_delta.x != 0.0 {
+            println!("max. iterations = {}",state.params.x);
+        }
+        if params_delta.y != 0.0 {
+            println!("z_step_div = {}",state.params.y);
+        }
+        if params_delta.z != 1.0 {
+            println!("de_stop = {}",state.params.z);
+        }
+        if params_delta.w != 1.0 {
+            println!("de_stop_factor = {}",state.params.w);
+        }
+
+        // and update everything to the shaders
         uniform_buffer.update(&state);
 
         /*

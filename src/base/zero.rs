@@ -1,4 +1,7 @@
-/// additive identity
+/// Zero trait. Defines associated constant `::ZERO` for the type.
+///
+/// For numbers, this corresponds to the literal `0` or `0.0`. For vectors this is the origin. For matrices, this is a completely empty matrix. For complex numbers, this is `0 + 0i`. For quaternions, this is `0 + 0i + 0j + 0k`. For multivectors, this has all components 0.
+
 pub trait Zero {
     const ZERO: Self;
 }

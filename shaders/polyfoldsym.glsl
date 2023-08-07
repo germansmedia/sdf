@@ -1,5 +1,6 @@
 #define POLY_ORDER 2.0
 
+/*
 void polyfoldsym(inout VEC3 v,inout FLOAT dr,VEC3 c) {
     FLOAT t = POLY_ORDER * atan(v.y,v.x);
     int it = int(t);
@@ -10,3 +11,4 @@ void polyfoldsym(inout VEC3 v,inout FLOAT dr,VEC3 c) {
     if ((it & 1) != 0) { v.y = -v.y; }
     v.x = sa * v.y - ca * v.x;
 }
+*/

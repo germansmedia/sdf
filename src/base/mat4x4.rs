@@ -21,19 +21,22 @@ use {
     },
 };
 
+/// 4x4 matrix of numbers.
 #[derive(Copy,Clone,Debug)]
-pub struct Mat4x4<T> {
+pub struct Mat4x4<T: Sized + Zero + One> {
     pub x: Vec4<T>,
     pub y: Vec4<T>,
     pub z: Vec4<T>,
     pub w: Vec4<T>,
 }
 
+// implementations where $t: Sized + Zero + One
 macro_rules! mat4x4_impl {
     ($($t:ty)+) => {
         $(
             impl Mat4x4<$t> {
 
+                /// Compose matrix from 3x3 matrix and vector.
                 pub fn from_mv(m: Mat3x3<$t>,v: Vec3<$t>) -> Mat4x4<$t> {
                     Mat4x4 {
                         x: Vec4 {
@@ -63,6 +66,7 @@ macro_rules! mat4x4_impl {
                     }
                 }
 
+                /// Transpose the matrix.
                 pub fn transpose(self) -> Mat4x4<$t> {
                     Mat4x4 {
                         x: Vec4 {
@@ -92,6 +96,7 @@ macro_rules! mat4x4_impl {
                     }
                 }
 
+                /// Calculate determinant of matrix.
                 pub fn det(self) -> $t {
                     let a = self.x.x;
                     let e = self.x.y;
@@ -134,30 +139,10 @@ macro_rules! mat4x4_impl {
 
             impl One for Mat4x4<$t> {
                 const ONE: Mat4x4<$t> = Mat4x4 {
-                    x: Vec4 {
-                        x: <$t>::ONE,
-                        y: <$t>::ZERO,
-                        z: <$t>::ZERO,
-                        w: <$t>::ZERO,
-                    },
-                    y: Vec4 {
-                        x: <$t>::ZERO,
-                        y: <$t>::ONE,
-                        z: <$t>::ZERO,
-                        w: <$t>::ZERO,
-                    },
-                    z: Vec4 {
-                        x: <$t>::ZERO,
-                        y: <$t>::ZERO,
-                        z: <$t>::ONE,
-                        w: <$t>::ZERO,
-                    },
-                    w: Vec4 {
-                        x: <$t>::ZERO,
-                        y: <$t>::ZERO,
-                        z: <$t>::ZERO,
-                        w: <$t>::ONE,
-                    },
+                    x: Vec4::<$t>::UNIT_X,
+                    y: Vec4::<$t>::UNIT_Y,
+                    z: Vec4::<$t>::UNIT_Z,
+                    w: Vec4::<$t>::UNIT_W,
                 };
             }
 
@@ -173,7 +158,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix + matrix
+            /// Matrix + matrix.
             impl Add<Mat4x4<$t>> for Mat4x4<$t> {
                 type Output = Self;
                 fn add(self,other: Self) -> Self::Output {
@@ -186,7 +171,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix += matrix
+            /// Matrix += matrix.
             impl AddAssign<Mat4x4<$t>> for Mat4x4<$t> {
                 fn add_assign(&mut self,other: Self) {
                     self.x += other.x;
@@ -196,7 +181,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix - matrix
+            /// Matrix - matrix.
             impl Sub<Mat4x4<$t>> for Mat4x4<$t> {
                 type Output = Self;
                 fn sub(self,other: Self) -> Self::Output {
@@ -209,7 +194,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix -= matrix
+            /// Matrix -= matrix.
             impl SubAssign<Mat4x4<$t>> for Mat4x4<$t> {
                 fn sub_assign(&mut self,other: Self) {
                     self.x -= other.x;
@@ -219,7 +204,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // scalar * matrix
+            /// Scalar * matrix.
             impl Mul<Mat4x4<$t>> for $t {
                 type Output = Mat4x4<$t>;
                 fn mul(self,other: Mat4x4<$t>) -> Self::Output {
@@ -232,7 +217,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix * scalar
+            /// Matrix * scalar.
             impl Mul<$t> for Mat4x4<$t> {
                 type Output = Mat4x4<$t>;
                 fn mul(self,other: $t) -> Self::Output {
@@ -245,7 +230,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix * vector
+            /// Matrix * vector.
             impl Mul<Vec4<$t>> for Mat4x4<$t> {
                 type Output = Vec4<$t>;
                 fn mul(self,other: Vec4<$t>) -> Self::Output {
@@ -258,7 +243,9 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix * matrix
+            // Vector * matrix is not implemented.
+
+            /// Matrix * matrix.
             impl Mul<Mat4x4<$t>> for Mat4x4<$t> {
                 type Output = Mat4x4<$t>;
                 fn mul(self,other: Mat4x4<$t>) -> Self::Output {
@@ -271,7 +258,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix *= scalar
+            /// Matrix *= scalar.
             impl MulAssign<$t> for Mat4x4<$t> {
                 fn mul_assign(&mut self,other: $t) {
                     self.x *= other;
@@ -281,15 +268,30 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // matrix *= matrix
+            /// Matrix *= matrix.
             impl MulAssign<Mat4x4<$t>> for Mat4x4<$t> {
                 fn mul_assign(&mut self,other: Mat4x4<$t>) {
                     let m = *self * other;
                     *self = m;
                 }
             }
+            
+            /// Matrix / scalar.
+            impl Div<$t> for Mat4x4<$t> {
+                type Output = Mat4x4<$t>;
+                fn div(self,other: $t) -> Self::Output {
+                    Mat4x4 {
+                        x: self.x / other,
+                        y: self.y / other,
+                        z: self.z / other,
+                        w: self.w / other,
+                    }
+                }
+            }
 
-            // matrix /= scalar
+            // Scalar / matrix is only defined for matrices of real numbers.
+
+            /// Matrix /= scalar.
             impl DivAssign<$t> for Mat4x4<$t> {
                 fn div_assign(&mut self,other: $t) {
                     self.x /= other;
@@ -299,7 +301,7 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            // -matrix
+            /// -Matrix.
             impl Neg for Mat4x4<$t> {
                 type Output = Mat4x4<$t>;
                 fn neg(self) -> Self::Output {
@@ -312,27 +314,13 @@ macro_rules! mat4x4_impl {
                 }
             }
 
+            /// Convert vector to translation matrix.
             impl From<Vec3<$t>> for Mat4x4<$t> {
                 fn from(value: Vec3<$t>) -> Self {
                     Mat4x4 {
-                        x: Vec4 {
-                            x: <$t>::ONE,
-                            y: <$t>::ZERO,
-                            z: <$t>::ZERO,
-                            w: <$t>::ZERO,
-                        },
-                        y: Vec4 {
-                            x: <$t>::ZERO,
-                            y: <$t>::ONE,
-                            z: <$t>::ZERO,
-                            w: <$t>::ZERO,
-                        },
-                        z: Vec4 {
-                            x: <$t>::ZERO,
-                            y: <$t>::ZERO,
-                            z: <$t>::ONE,
-                            w: <$t>::ZERO,
-                        },
+                        x: Vec4::<$t>::UNIT_X,
+                        y: Vec4::<$t>::UNIT_Y,
+                        z: Vec4::<$t>::UNIT_Z,
                         w: Vec4 {
                             x: value.x,
                             y: value.y,
@@ -343,45 +331,29 @@ macro_rules! mat4x4_impl {
                 }
             }
 
-            impl From<Quaternion<$t>> for Mat4x4<$t> {
-                fn from(value: Quaternion<$t>) -> Self {
-                    let x2 = value.i + value.i;
-                    let y2 = value.j + value.j;
-                    let z2 = value.k + value.k;
-                    let xx2 = value.i * x2;
-                    let yy2 = value.j * y2;
-                    let zz2 = value.k * z2;
-                    let yz2 = value.j * z2;
-                    let wx2 = value.r * x2;
-                    let xy2 = value.i * y2;
-                    let wz2 = value.r * z2;
-                    let xz2 = value.i * z2;
-                    let wy2 = value.r * y2;
+            /// Convert 3x3 matrix to 4x4 matrix.
+            impl From<Mat3x3<$t>> for Mat4x4<$t> {
+                fn from(value: Mat3x3<$t>) -> Self {
                     Mat4x4 {
                         x: Vec4 {
-                            x: <$t>::ONE - yy2 - zz2,
-                            y: xy2 + wz2,
-                            z: xz2 - wy2,
+                            x: value.x.x,
+                            y: value.x.y,
+                            z: value.x.z,
                             w: <$t>::ZERO,
                         },
                         y: Vec4 {
-                            x: xy2 - wz2,
-                            y: <$t>::ONE - xx2 - zz2,
-                            z: yz2 + wx2,
+                            x: value.y.x,
+                            y: value.y.y,
+                            z: value.y.z,
                             w: <$t>::ZERO,
                         },
                         z: Vec4 {
-                            x: xz2 + wy2,
-                            y: yz2 - wx2,
-                            z: <$t>::ONE - xx2 - yy2,
+                            x: value.z.x,
+                            y: value.z.y,
+                            z: value.z.z,
                             w: <$t>::ZERO,
                         },
-                        w: Vec4 {
-                            x: <$t>::ZERO,
-                            y: <$t>::ZERO,
-                            z: <$t>::ZERO,
-                            w: <$t>::ONE,
-                        },
+                        w: Vec4::<$t>::UNIT_W,
                     }
                 }
             }
@@ -391,70 +363,13 @@ macro_rules! mat4x4_impl {
 
 mat4x4_impl! { isize i8 i16 i32 i64 i128 f32 f64 }
 
+// implementations where $t: Real
 macro_rules! mat4x4_real_impl {
     ($($t:ty)+) => {
         $(
             impl Mat4x4<$t> {
-
-                pub fn perspective(fovy: $t,aspect: $t,n: $t,f: $t) -> Mat4x4<$t> {
-                    let f = (0.5 * fovy).tan();
-                    Mat4x4 {
-                        x: Vec4 {
-                            x: aspect / f,
-                            y: 0.0,
-                            z: 0.0,
-                            w: 0.0,
-                        },
-                        y: Vec4 {
-                            x: 0.0,
-                            y: 1.0 / f,
-                            z: 0.0,
-                            w: 0.0,
-                        },
-                        z: Vec4 {
-                            x: 0.0,
-                            y: 0.0,
-                            z: -(f + n) / (n - f),
-                            w: -1.0,
-                        },
-                        w: Vec4 {
-                            x: 0.0,
-                            y: 0.0,
-                            z: -2.0 * f * n / (n - f),
-                            w: 0.0,
-                        },
-                    }
-                }
     
-                pub fn frustum(l: $t,r: $t,t: $t,b: $t,n: $t,f: $t) -> Mat4x4<$t> {
-                    Mat4x4 {
-                        x: Vec4 {
-                            x: (n + n) / (r - l),
-                            y: 0.0,
-                            z: 0.0,
-                            w: 0.0,
-                        },
-                        y: Vec4 {
-                            x: 0.0,
-                            y: (n + n) / (t - b),
-                            z: 0.0,
-                            w: 0.0,
-                        },
-                        z: Vec4 {
-                            x: (r + l) / (r - l),
-                            y: (t + b) / (t - b),
-                            z: -(f + n) / (f - n),
-                            w: -1.0,
-                        },
-                        w: Vec4 {
-                            x: 0.0,
-                            y: 0.0,
-                            z: -2.0 * f * n / (f - n),
-                            w: 0.0,
-                        }
-                    }
-                }
-    
+                /// Calculate inverse of matrix.
                 pub fn inv(self) -> Self {
                     let a = self.x.x;
                     let e = self.x.y;
@@ -511,9 +426,70 @@ macro_rules! mat4x4_real_impl {
                         w: Vec4 { x: -ad,y: ah,z: -al,w: ap, },
                     } / det
                 }
+
+                /// Create perspective projection matrix.
+                pub fn perspective(fovy: $t,aspect: $t,n: $t,f: $t) -> Mat4x4<$t> {
+                    let t = (0.5 * fovy).tan();
+                    Mat4x4 {
+                        x: Vec4 {
+                            x: aspect / t,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        y: Vec4 {
+                            x: 0.0,
+                            y: 1.0 / t,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        z: Vec4 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -(f + n) / (n - f),
+                            w: -1.0,
+                        },
+                        w: Vec4 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -2.0 * f * n / (n - f),
+                            w: 0.0,
+                        },
+                    }
+                }
+    
+                /// Create frustum projection matrix.
+                pub fn frustum(l: $t,r: $t,t: $t,b: $t,n: $t,f: $t) -> Mat4x4<$t> {
+                    Mat4x4 {
+                        x: Vec4 {
+                            x: (n + n) / (r - l),
+                            y: 0.0,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        y: Vec4 {
+                            x: 0.0,
+                            y: (n + n) / (t - b),
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        z: Vec4 {
+                            x: (r + l) / (r - l),
+                            y: (t + b) / (t - b),
+                            z: -(f + n) / (f - n),
+                            w: -1.0,
+                        },
+                        w: Vec4 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -2.0 * f * n / (f - n),
+                            w: 0.0,
+                        }
+                    }
+                }
             }
 
-            // scalar / matrix
+            // Scalar / matrix.
             impl Div<Mat4x4<$t>> for $t {
                 type Output = Mat4x4<$t>;
                 fn div(self,other: Mat4x4<$t>) -> Self::Output {
@@ -521,20 +497,7 @@ macro_rules! mat4x4_real_impl {
                 }
             }
 
-            // matrix / scalar
-            impl Div<$t> for Mat4x4<$t> {
-                type Output = Mat4x4<$t>;
-                fn div(self,other: $t) -> Self::Output {
-                    Mat4x4 {
-                        x: self.x / other,
-                        y: self.y / other,
-                        z: self.z / other,
-                        w: self.w / other,
-                    }
-                }
-            }
-
-            // matrix / matrix
+            // Matrix / matrix.
             impl Div<Mat4x4<$t>> for Mat4x4<$t> {
                 type Output = Mat4x4<$t>;
                 fn div(self,other: Mat4x4<$t>) -> Self::Output {
@@ -542,10 +505,49 @@ macro_rules! mat4x4_real_impl {
                 }
             }
 
-            // matrix /= matrix
+            // Matrix /= matrix.
             impl DivAssign<Mat4x4<$t>> for Mat4x4<$t> {
                 fn div_assign(&mut self,other: Mat4x4<$t>) {
                     *self *= other.inv()
+                }
+            }
+
+            /// Convert quaternion to rotation matrix.
+            impl From<Quaternion<$t>> for Mat4x4<$t> {
+                fn from(value: Quaternion<$t>) -> Self {
+                    let x2 = value.i + value.i;
+                    let y2 = value.j + value.j;
+                    let z2 = value.k + value.k;
+                    let xx2 = value.i * x2;
+                    let yy2 = value.j * y2;
+                    let zz2 = value.k * z2;
+                    let yz2 = value.j * z2;
+                    let wx2 = value.r * x2;
+                    let xy2 = value.i * y2;
+                    let wz2 = value.r * z2;
+                    let xz2 = value.i * z2;
+                    let wy2 = value.r * y2;
+                    Mat4x4 {
+                        x: Vec4 {
+                            x: <$t>::ONE - yy2 - zz2,
+                            y: xy2 + wz2,
+                            z: xz2 - wy2,
+                            w: <$t>::ZERO,
+                        },
+                        y: Vec4 {
+                            x: xy2 - wz2,
+                            y: <$t>::ONE - xx2 - zz2,
+                            z: yz2 + wx2,
+                            w: <$t>::ZERO,
+                        },
+                        z: Vec4 {
+                            x: xz2 + wy2,
+                            y: yz2 - wx2,
+                            z: <$t>::ONE - xx2 - yy2,
+                            w: <$t>::ZERO,
+                        },
+                        w: Vec4::<$t>::UNIT_W,
+                    }
                 }
             }
         )+

@@ -1,6 +1,6 @@
 use crate::*;
 
-/// unsigned number trait
+/// Unsigned number trait.
 pub trait Unsigned: Sized + Zero + One {
     const MIN: Self;
     const MAX: Self;

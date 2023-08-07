@@ -22,15 +22,13 @@ use {
     },
 };
 
-/// Quaternion template.
+/// Quaternion of real numbers.
 /// 
 /// A quaternion is a way to represent 3D orientation and allow for correct rotations without gimbal lock. The concept is
 /// similar to [`Complex`], where imaginary numbers are combined with scalars. The [`Quaternion`] adds three separate
 /// imaginary numbers, allowing rotations around 3 orthogonal axes.
-/// 
-/// Can use any scalar underneath (typically [`f32`] or [`f64`]), as well as [`Rational`] and [`Fixed`] types.
 #[derive(Copy,Clone,Debug)]
-pub struct Quaternion<T> {
+pub struct Quaternion<T: Real> {
     pub r: T,
     pub i: T,
     pub j: T,
@@ -42,14 +40,17 @@ macro_rules! quaternion_impl {
         $(
             impl Quaternion<$t> {
 
-                pub fn from_euler(e: Vec3<$t>) -> Self {
-                    let he = 0.5 * e;
-                    let cr = he.x.cos();
-                    let sr = he.x.sin();
-                    let cp = he.y.cos();
-                    let sp = he.y.sin();
-                    let cy = he.z.cos();
-                    let sy = he.z.sin();
+                /// Convert Euler angles to quaternion.
+                pub fn from_euler(r: $t,p: $t,y: $t) -> Self {
+                    let hr = 0.5 * r;
+                    let hp = 0.5 * p;
+                    let hy = 0.5 * y;
+                    let cr = hr.cos();
+                    let sr = hr.sin();
+                    let cp = hp.cos();
+                    let sp = hp.sin();
+                    let cy = hy.cos();
+                    let sy = hy.sin();
                     Quaternion {
                         r: cr * cp * cy + sr * sp * sy,
                         i: sr * cp * cy - cr * sp * sy,
@@ -58,6 +59,7 @@ macro_rules! quaternion_impl {
                     }
                 }
 
+                /// Calculate quaternion conjugate.
                 pub fn conj(&self) -> Self {
                     Quaternion {
                         r: self.r,
@@ -67,6 +69,7 @@ macro_rules! quaternion_impl {
                     }
                 }
 
+                /// Invert the quaternion.
                 pub fn inv(&self) -> Self {
                     let f = self.r * self.r + self.i * self.i + self.j * self.j + self.k * self.k;
                     Quaternion {
@@ -113,7 +116,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // scalar + quaternion
+            /// Scalar + quaternion.
             impl Add<Quaternion<$t>> for $t {
                 type Output = Quaternion<$t>;
                 fn add(self,other: Quaternion<$t>) -> Self::Output {
@@ -126,20 +129,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // complex + quaternion
-            impl Add<Quaternion<$t>> for Complex<$t> {
-                type Output = Quaternion<$t>;
-                fn add(self,other: Quaternion<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r + other.r,
-                        i: self.i + other.i,
-                        j: other.j,
-                        k: other.k,
-                    }
-                }
-            }
-
-            // quaternion + scalar
+            /// Quaternion + scalar.
             impl Add<$t> for Quaternion<$t> {
                 type Output = Quaternion<$t>;
                 fn add(self,other: $t) -> Self::Output {
@@ -152,58 +142,14 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion + complex
-            impl Add<Complex<$t>> for Quaternion<$t> {
-                type Output = Quaternion<$t>;
-                fn add(self,other: Complex<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r + other.r,
-                        i: self.i + other.i,
-                        j: self.j,
-                        k: self.k,
-                    }
-                }
-            }
-
-            // quaternion + quaternion
-            impl Add<Quaternion<$t>> for Quaternion<$t> {
-                type Output = Quaternion<$t>;
-                fn add(self,other: Quaternion<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r + other.r,
-                        i: self.i + other.i,
-                        j: self.j + other.j,
-                        k: self.k + other.k,
-                    }
-                }
-            }
-
-            // quaternion += scalar
+            /// Quaternion += scalar.
             impl AddAssign<$t> for Quaternion<$t> {
                 fn add_assign(&mut self,other: $t) {
                     self.r += other;
                 }
             }
 
-            // quaternion += complex
-            impl AddAssign<Complex<$t>> for Quaternion<$t> {
-                fn add_assign(&mut self,other: Complex<$t>) {
-                    self.r += other.r;
-                    self.i += other.i;
-                }
-            }
-
-            // quaternion += quaternion
-            impl AddAssign<Quaternion<$t>> for Quaternion<$t> {
-                fn add_assign(&mut self,other: Quaternion<$t>) {
-                    self.r += other.r;
-                    self.i += other.i;
-                    self.j += other.j;
-                    self.k += other.k;
-                }
-            }
-
-            // scalar - quaternion
+            /// Scalar - quaternion.
             impl Sub<Quaternion<$t>> for $t {
                 type Output = Quaternion<$t>;
                 fn sub(self,other: Quaternion<$t>) -> Self::Output {
@@ -216,20 +162,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // complex - quaternion
-            impl Sub<Quaternion<$t>> for Complex<$t> {
-                type Output = Quaternion<$t>;
-                fn sub(self,other: Quaternion<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r - other.r,
-                        i: self.i - other.i,
-                        j: -other.j,
-                        k: -other.k,
-                    }
-                }
-            }
-
-            // quaternion - scalar
+            /// Quaternion - scalar.
             impl Sub<$t> for Quaternion<$t> {
                 type Output = Quaternion<$t>;
                 fn sub(self,other: $t) -> Self::Output {
@@ -242,58 +175,14 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion - complex
-            impl Sub<Complex<$t>> for Quaternion<$t> {
-                type Output = Quaternion<$t>;
-                fn sub(self,other: Complex<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r - other.r,
-                        i: self.i - other.i,
-                        j: self.j,
-                        k: self.k,
-                    }
-                }
-            }
-
-            // quaternion - quaternion
-            impl Sub<Quaternion<$t>> for Quaternion<$t> {
-                type Output = Quaternion<$t>;
-                fn sub(self,other: Quaternion<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r - other.r,
-                        i: self.i - other.i,
-                        j: self.j - other.j,
-                        k: self.k - other.k,
-                    }
-                }
-            }
-
-            // quaternion -= scalar
+            /// Quaternion -= scalar.
             impl SubAssign<$t> for Quaternion<$t> {
                 fn sub_assign(&mut self,other: $t) {
                     self.r -= other;
                 }
             }
 
-            // quaternion -= complex
-            impl SubAssign<Complex<$t>> for Quaternion<$t> {
-                fn sub_assign(&mut self,other: Complex<$t>) {
-                    self.r -= other.r;
-                    self.i -= other.i;
-                }
-            }
-
-            // quaternion -= quaternion
-            impl SubAssign<Quaternion<$t>> for Quaternion<$t> {
-                fn sub_assign(&mut self,other: Quaternion<$t>) {
-                    self.r -= other.r;
-                    self.i -= other.i;
-                    self.j -= other.j;
-                    self.k -= other.k;
-                }
-            }
-
-            // scalar * quaternion
+            /// Scalar * quaternion.
             impl Mul<Quaternion<$t>> for $t {
                 type Output = Quaternion<$t>;
                 fn mul(self,other: Quaternion<$t>) -> Self::Output {
@@ -306,20 +195,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // complex * quaternion
-            impl Mul<Quaternion<$t>> for Complex<$t> {
-                type Output = Quaternion<$t>;
-                fn mul(self,other: Quaternion<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r * other.r - self.i * other.i,
-                        i: self.r * other.i + self.i * other.r,
-                        j: self.r * other.j - self.i * other.k,
-                        k: self.r * other.k + self.i * other.j,
-                    }
-                }
-            }
-
-            // quaternion * scalar
+            /// Quaternion * scalar.
             impl Mul<$t> for Quaternion<$t> {
                 type Output = Quaternion<$t>;
                 fn mul(self,other: $t) -> Self::Output {
@@ -332,34 +208,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion * complex
-            impl Mul<Complex<$t>> for Quaternion<$t> {
-                type Output = Quaternion<$t>;
-                fn mul(self,other: Complex<$t>) -> Self::Output {
-                    Quaternion {
-                        r: self.r * other.r - self.i * other.i,
-                        i: self.r * other.i + self.i * other.r,
-                        j: self.j * other.r + self.k * other.i,
-                        k: -self.j * other.i + self.k * other.r,
-                    }
-                }
-            }
-
-            // quaternion * vector
-            /*impl Mul<Vec3<$t>> for Quaternion<$t> {
-                type Output = Vec3<$t>;
-                fn mul(self,other: Vec3<$t>) {
-                    let aq = self * Quaternion { r: <$t>::ZERO,i: other.x,j: other.y,k: other.z, };
-                    let aqa_inv = aq * aq.inv();
-                    Vec3 {
-                        x: aqa_inv.i,
-                        y: aqa_inv.j,
-                        z: aqa_inv.k,
-                    }
-                }
-            }*/
-
-            // quaternion * quaternion
+            /// Quaternion * quaternion.
             impl Mul<Quaternion<$t>> for Quaternion<$t> {
                 type Output = Quaternion<$t>;
                 fn mul(self,other: Quaternion<$t>) -> Self::Output {
@@ -372,7 +221,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion * vector
+            /// Quaternion * vector.
             impl Mul<Vec3<$t>> for Quaternion<$t> {
                 type Output = Vec3<$t>;
                 fn mul(self,other: Vec3<$t>) -> Self::Output {
@@ -406,7 +255,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion *= scalar
+            /// Quaternion *= scalar.
             impl MulAssign<$t> for Quaternion<$t> {
                 fn mul_assign(&mut self,other: $t) {
                     self.r *= other;
@@ -416,21 +265,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion *= complex
-            impl MulAssign<Complex<$t>> for Quaternion<$t> {
-                fn mul_assign(&mut self,other: Complex<$t>) {
-                    let r = self.r * other.r - self.i * other.i;
-                    let i = self.r * other.i + self.i * other.r;
-                    let j = self.j * other.r + self.k * other.i;
-                    let k = -self.j * other.i + self.k * other.r;
-                    self.r = r;
-                    self.i = i;
-                    self.j = j;
-                    self.k = k;
-                }
-            }
-
-            // quaternion *= quaternion
+            /// Quaternion *= quaternion.
             impl MulAssign<Quaternion<$t>> for Quaternion<$t> {
                 fn mul_assign(&mut self,other: Quaternion<$t>) {
                     let r = self.r * other.r - self.i * other.i - self.j * other.j - self.k * other.k;
@@ -444,7 +279,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // scalar / quaternion
+            /// Scalar / quaternion.
             impl Div<Quaternion<$t>> for $t {
                 type Output = Quaternion<$t>;
                 fn div(self,other: Quaternion<$t>) -> Self::Output {
@@ -458,21 +293,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // complex / quaternion
-            impl Div<Quaternion<$t>> for Complex<$t> {
-                type Output = Quaternion<$t>;
-                fn div(self,other: Quaternion<$t>) -> Self::Output {
-                    let f = other.r * other.r + other.i * other.i + other.j * other.j + other.k * other.k;
-                    Quaternion {
-                        r: (self.r * other.r + self.i * other.i) / f,
-                        i: (self.i * other.r - self.r * other.i) / f,
-                        j: (-self.r * other.j + self.i * other.k) / f,
-                        k: (-self.r * other.k - self.i * other.j) / f,
-                    }
-                }
-            }
-
-            // quaternion / scalar
+            /// Quaternion / scalar.
             impl Div<$t> for Quaternion<$t> {
                 type Output = Quaternion<$t>;
                 fn div(self,other: $t) -> Self::Output {
@@ -485,21 +306,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion / complex
-            impl Div<Complex<$t>> for Quaternion<$t> {
-                type Output = Quaternion<$t>;
-                fn div(self,other: Complex<$t>) -> Self::Output {
-                    let f = other.r * other.r + other.i * other.i;
-                    Quaternion {
-                        r: (self.r * other.r + self.i * other.i) / f,
-                        i: (self.i * other.r - self.r * other.i) / f,
-                        j: (self.j * other.r - self.k * other.i) / f,
-                        k: (self.k * other.r + self.j * other.i) / f,
-                    }
-                }
-            }
-
-            // quaternion / quaternion
+            /// Quaternion / quaternion.
             impl Div<Quaternion<$t>> for Quaternion<$t> {
                 type Output = Quaternion<$t>;
                 fn div(self,other: Quaternion<$t>) -> Self::Output {
@@ -513,7 +320,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion /= scalar
+            /// Quaternion /= scalar.
             impl DivAssign<$t> for Quaternion<$t> {
                 fn div_assign(&mut self,other: $t) {
                     self.r *= other;
@@ -523,27 +330,14 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // quaternion /= complex
-            impl DivAssign<Complex<$t>> for Quaternion<$t> {
-                fn div_assign(&mut self,other: Complex<$t>) {
-                    let r = self.r * other.r - self.i * other.i;
-                    let i = self.r * other.i + self.i * other.r;
-                    let j = self.j * other.r + self.k * other.i;
-                    let k = -self.j * other.i + self.k * other.r;
-                    self.r = r;
-                    self.i = i;
-                    self.j = j;
-                    self.k = k;
-                }
-            }
-
-            // quaternion /= quaternion
+            /// Quaternion /= quaternion.
             impl DivAssign<Quaternion<$t>> for Quaternion<$t> {
                 fn div_assign(&mut self,other: Quaternion<$t>) {
-                    let r = self.r * other.r - self.i * other.i - self.j * other.j - self.k * other.k;
-                    let i = self.r * other.i + self.i * other.r + self.j * other.k - self.k * other.j;
-                    let j = self.r * other.j - self.i * other.k + self.j * other.r + self.k * other.i;
-                    let k = self.r * other.k + self.i * other.j - self.j * other.i + self.k * other.r;
+                    let f = other.r * other.r + other.i * other.i + other.j * other.j + other.k * other.k;
+                    let r = (self.r * other.r + self.i * other.i + self.j * other.j + self.k * other.k) / f;
+                    let i = (self.i * other.r - self.j * other.k + self.k * other.j - self.r * other.i) / f;
+                    let j = (self.j * other.r - self.k * other.i - self.r * other.j + self.i * other.k) / f;
+                    let k = (self.k * other.r - self.r * other.k - self.i * other.j + self.j * other.i) / f;
                     self.r = r;
                     self.i = i;
                     self.j = j;
@@ -551,7 +345,7 @@ macro_rules! quaternion_impl {
                 }
             }
 
-            // -quaternion
+            /// -Quaternion.
             impl Neg for Quaternion<$t> {
                 type Output = Self;
                 fn neg(self) -> Self::Output {

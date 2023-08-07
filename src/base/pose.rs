@@ -6,8 +6,9 @@ use {
     },
 };
 
+/// 3D pose (position and orientation).
 #[derive(Copy,Clone,Debug)]
-pub struct Pose<T> {
+pub struct Pose<T: Real> {
     pub p: Vec3<T>,
     pub o: Quaternion<T>,
 }
@@ -16,6 +17,7 @@ macro_rules! pose_impl {
     ($($t:ty)+) => {
         $(
             impl Pose<$t> {
+                /// Invert the pose. 
                 pub fn inv(self) -> Pose<$t> {
                     let o = self.o.inv();
                     Pose {
@@ -29,7 +31,7 @@ macro_rules! pose_impl {
                 const ONE: Self = Pose { p: Vec3::<$t>::ZERO,o: Quaternion::<$t>::ONE, };
             }
 
-            // pose * vector
+            /// Pose * vector.
             impl Mul<Vec3<$t>> for Pose<$t> {
                 type Output = Vec3<$t>;
                 fn mul(self,other: Vec3<$t>) -> Vec3<$t> {
@@ -37,7 +39,7 @@ macro_rules! pose_impl {
                 }
             }
 
-            // pose * pose
+            /// Pose * pose.
             impl Mul<Pose<$t>> for Pose<$t> {
                 type Output = Pose<$t>;
                 fn mul(self,other: Pose<$t>) -> Pose<$t> {
@@ -48,7 +50,7 @@ macro_rules! pose_impl {
                 }
             }
 
-            // pose *= pose
+            /// Pose *= pose.
             impl MulAssign<Pose<$t>> for Pose<$t> {
                 fn mul_assign(&mut self,other: Pose<$t>) {
                     self.p += self.o * other.p;

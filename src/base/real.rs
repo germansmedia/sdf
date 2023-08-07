@@ -1,6 +1,6 @@
 use crate::*;
 
-/// real number trait
+/// Real number trait.
 pub trait Real: Signed {
     const PI: Self;
     fn floor(self) -> Self;

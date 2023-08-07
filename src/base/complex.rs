@@ -22,8 +22,11 @@ use {
     },
 };
 
+/// Complex number.
+///
+/// A complex number is a linear combination of a real number `r` and an imaginary number `i`.
 #[derive(Copy,Clone,Debug)]
-pub struct Complex<T> {
+pub struct Complex<T: Real> {
     pub r: T,
     pub i: T,
 }
@@ -32,6 +35,8 @@ macro_rules! complex_impl {
     ($($t:ty)+) => {
         $(
             impl Complex<$t> {
+
+                /// Complex conjugate.
                 pub fn conj(&self) -> Self {
                     Complex {
                         r: self.r,
@@ -39,6 +44,7 @@ macro_rules! complex_impl {
                     }
                 }
 
+                /// Complex argument.
                 pub fn arg(&self) -> $t {
                     self.r.atan2(self.i)
                 }
@@ -70,6 +76,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Real + complex.
             impl Add<Complex<$t>> for $t {
                 type Output = Complex<$t>;
                 fn add(self,other: Complex<$t>) -> Self::Output {
@@ -80,6 +87,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex + real.
             impl Add<$t> for Complex<$t> {
                 type Output = Self;
                 fn add(self,other: $t) -> Self::Output {
@@ -90,6 +98,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex + complex.
             impl Add<Complex<$t>> for Complex<$t> {
                 type Output = Self;
                 fn add(self,other: Self) -> Self::Output {
@@ -100,12 +109,14 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex += real.
             impl AddAssign<$t> for Complex<$t> {
                 fn add_assign(&mut self,other: $t) {
                     self.r += other;
                 }
             }
 
+            /// Complex += complex.
             impl AddAssign<Complex<$t>> for Complex<$t> {
                 fn add_assign(&mut self,other: Self) {
                     self.r += other.r;
@@ -113,6 +124,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Real - complex.
             impl Sub<Complex<$t>> for $t {
                 type Output = Complex<$t>;
                 fn sub(self,other: Complex<$t>) -> Self::Output {
@@ -123,6 +135,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex - real.
             impl Sub<$t> for Complex<$t> {
                 type Output = Self;
                 fn sub(self,other: $t) -> Self::Output {
@@ -133,6 +146,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex - complex.
             impl Sub<Complex<$t>> for Complex<$t> {
                 type Output = Self;
                 fn sub(self,other: Self) -> Self::Output {
@@ -143,12 +157,14 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex -= real.
             impl SubAssign<$t> for Complex<$t> {
                 fn sub_assign(&mut self,other: $t) {
                     self.r -= other;
                 }
             }
 
+            /// Complex -= complex.
             impl SubAssign<Complex<$t>> for Complex<$t> {
                 fn sub_assign(&mut self,other: Self) {
                     self.r -= other.r;
@@ -156,6 +172,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Real * complex.
             impl Mul<Complex<$t>> for $t {
                 type Output = Complex<$t>;
                 fn mul(self,other: Complex<$t>) -> Self::Output {
@@ -166,6 +183,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex * real.
             impl Mul<$t> for Complex<$t> {
                 type Output = Self;
                 fn mul(self,other: $t) -> Self::Output {
@@ -176,6 +194,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex * complex.
             impl Mul<Complex<$t>> for Complex<$t> {
                 type Output = Self;
                 fn mul(self,other: Self) -> Self::Output {
@@ -186,6 +205,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex *= real.
             impl MulAssign<$t> for Complex<$t> {
                 fn mul_assign(&mut self,other: $t) {
                     self.r *= other;
@@ -193,6 +213,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex *= complex.
             impl MulAssign<Complex<$t>> for Complex<$t> {
                 fn mul_assign(&mut self,other: Self) {
                     let r = self.r * other.r - self.i * other.i;
@@ -202,6 +223,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Real / complex.
             impl Div<Complex<$t>> for $t {
                 type Output = Complex<$t>;
                 fn div(self,other: Complex<$t>) -> Self::Output {
@@ -213,6 +235,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex / real.
             impl Div<$t> for Complex<$t> {
                 type Output = Self;
                 fn div(self,other: $t) -> Self::Output {
@@ -223,6 +246,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex / complex.
             impl Div<Complex<$t>> for Complex<$t> {
                 type Output = Self;
                 fn div(self,other: Self) -> Self::Output {
@@ -234,6 +258,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex /= real.
             impl DivAssign<$t> for Complex<$t> {
                 fn div_assign(&mut self,other: $t) {
                     self.r /= other;
@@ -241,6 +266,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// Complex /= complex.
             impl DivAssign<Complex<$t>> for Complex<$t> {
                 fn div_assign(&mut self,other: Self) {
                     let f = other.r * other.r + other.i * other.i;
@@ -251,6 +277,7 @@ macro_rules! complex_impl {
                 }
             }
 
+            /// -Complex.
             impl Neg for Complex<$t> {
                 type Output = Self;
                 fn neg(self) -> Self {
@@ -260,22 +287,16 @@ macro_rules! complex_impl {
                     }
                 }
             }
-
-            /*
-            impl Unsigned for Complex<$t> {
-                // TODO
-            }
-
-            impl Signed for Complex<$t> {
-                // TODO
-            }
-
-            impl Real for Complex<$t> {
-                // TODO
-            }
-            */
         )+
     }
 }
 
 complex_impl! { f32 f64 }
+
+/// Complex number built from `f32`s.
+#[allow(non_camel_case_types)]
+pub type c32 = Complex<f32>;
+
+/// Complex number built from `f64`s.
+#[allow(non_camel_case_types)]
+pub type c64 = Complex<f64>;

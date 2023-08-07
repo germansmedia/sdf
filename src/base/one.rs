@@ -1,4 +1,6 @@
-/// multiplicative identity
+/// One trait. Defines associated constant `::ONE` for the type.
+///
+/// For numbers, this corresponds to the literal `1` or `1.0`. For vectors this is undefined. For matrices, this is the unit matrix. For complex numbers, this is `1 + 0i`. For quaternions, this is `1 + 0i + 0j + 0k`. For multivectors, this is undefined.
 pub trait One {
     const ONE: Self;
 }

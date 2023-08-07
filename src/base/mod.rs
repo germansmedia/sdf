@@ -10,17 +10,8 @@ pub use unsigned::*;
 mod signed;
 pub use signed::*;
 
-//mod rational;
-//pub use rational::*;
-
 mod real;
 pub use real::*;
-
-//mod float;
-//pub use float::*;
-
-//mod fixed;
-//pub use fixed::*;
 
 mod complex;
 pub use complex::*;
@@ -36,9 +27,6 @@ pub use vec3::*;
 
 mod vec4;
 pub use vec4::*;
-
-//mod mat;
-//pub use mat::*;
 
 mod mat2x2;
 pub use mat2x2::*;
@@ -67,17 +55,5 @@ pub use mat3x3::*;
 mod mat4x4;
 pub use mat4x4::*;
 
-//mod multivec2;
-//pub use multivec2::*;
-
-//mod multivec3;
-//pub use multivec3::*;
-
-//mod multivec4;
-//pub use multivec4::*;
-
 mod rect;
 pub use rect::*;
-
-mod pose;
-pub use pose::*;

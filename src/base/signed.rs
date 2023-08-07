@@ -1,5 +1,6 @@
 use crate::*;
 
+/// Signed number trait.
 pub trait Signed: Unsigned {
     fn abs(self) -> Self;
     fn signum(self) -> Self;

@@ -5,6 +5,7 @@ layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 layout (binding = 0) readonly uniform State {
     mat4 view;
     vec4 refs;
+    vec4 params;
 };
 
 layout (binding = 1) writeonly uniform image2D out_frame;
@@ -22,18 +23,14 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #endif
 
 // marching parameters
-#define MAX_STEPS 50
+#define MAX_STEPS 100
 #define CLOSEST_DISTANCE 0.01
 #define MAX_DISTANCE 100.0
 #define RAY_STEP_MULTIPLIER 0.01
-#define NORMAL_STEP_MULTIPLIER 0.0001
+#define NORMAL_STEP_MULTIPLIER 0.001
 
 // iteration parameters
-#define MAX_ITERATIONS 30
 #define ESCAPE_DISTANCE 10
-
-// from MB3D: this seems to be at most 0.3
-#define Z_STEP_DIV 0.3
 
 // from MB3D: this is min(sqrt(Z_STEP_DIV),0.9)
 #define DE_SUB min(sqrt(Z_STEP_DIV),0.9)
@@ -41,14 +38,8 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 // from MB3D: this is 0.5 * max(width,height) * sqrt(Z_STEP_DIV + 0.001)
 #define MCTMH04ZSD (512.0 * sqrt(Z_STEP_DIV + 0.001))
 
-// from MB3D: this seems to be the value from the UI
-#define DE_STOP 0.01
-
-// from MB3D: this is max(0.0,fovy * pi / 180) / height
-#define DE_STOP_FACTOR 0.1
-
 // rendering
-#define OBJECT_COLOR vec3(0.9,0.8,0.2)
+#define OBJECT_COLOR vec3(0.5,0.4,0.2)
 #define TRAP_COLOR vec3(0.8,0.8,0.8)
 #define LIGHT_POS vec3(-2,-6,-5)
 #define LIGHT_COLOR vec3(1.0,0.9,0.7)
@@ -103,7 +94,7 @@ float sphere(vec3 p,vec3 center,float radius) {
     return length(center - p) - radius;
 }
 
-FLOAT do_iterations(VEC3 c,out int i) {
+FLOAT do_iterations(VEC3 c,out int i,int max_iterations) {
     VEC3 v = c;
     FLOAT r = 0.0;
     FLOAT dr = 1.0;
@@ -114,63 +105,63 @@ FLOAT do_iterations(VEC3 c,out int i) {
     r = length(v);
     if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
-    if (i > MAX_ITERATIONS) return r / dr;
+    if (i > max_iterations) return r / dr;
 
     rotate4d(v,dr,c);
     r = length(v);
     if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
-    if (i > MAX_ITERATIONS) return r / dr;
+    if (i > max_iterations) return r / dr;
 
     polyfoldsym(v,dr,c);
     r = length(v);
     if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
-    if (i > MAX_ITERATIONS) return r / dr;
+    if (i > max_iterations) return r / dr;
 
     amazingbox2(v,dr,c);
     r = length(v);
     if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
-    if (i > MAX_ITERATIONS) return r / dr;
+    if (i > max_iterations) return r / dr;
 
     amazingbox2(v,dr,c);
     r = length(v);
     if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
-    if (i > MAX_ITERATIONS) return r / dr;
+    if (i > max_iterations) return r / dr;
 
     amazingbox2(v,dr,c);
     r = length(v);
     if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
-    if (i > MAX_ITERATIONS) return r / dr;
+    if (i > max_iterations) return r / dr;
 
     amazingbox2(v,dr,c);
     r = length(v);
     if (r > ESCAPE_DISTANCE) return r / dr;
     i++;
-    if (i > MAX_ITERATIONS) return r / dr;
+    if (i > max_iterations) return r / dr;
     */
 
     while (i < 100) {
-        amazingbox2(v,dr,c);
+        //amazingbox2(v,dr,c);
         //kochcube(v,dr,c);
-        //mandelbox(v,dr,c);
+        mandelbox(v,dr,c);
         r = length(v);
         if (r > ESCAPE_DISTANCE) break;
         i++;
-        if (i >= MAX_ITERATIONS) break;
+        if (i >= max_iterations) break;
     }
 
     return r / dr;
 }
 
-float estimate_distance(vec3 p,out int i) {
-    return do_iterations(p,i);
+FLOAT estimate_distance(VEC3 p,out int i,int max_iterations) {
+    return do_iterations(p,i,max_iterations);
 }
 
-vec3 estimate_normal(vec3 p) {
+vec3 estimate_normal(vec3 p,int max_iterations) {
     /*
     float d = RAY_STEP_MULTIPLIER * sdf(p);
     vec3 dx = vec3(d,0,0);
@@ -184,19 +175,19 @@ vec3 estimate_normal(vec3 p) {
     */
     vec2 k = vec2(1,-1);
     int i;
-    return normalize(
-        k.xyy * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.xyy,i) + 
-        k.yyx * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.yyx,i) + 
-        k.yxy * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.yxy,i) + 
-        k.xxx * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.xxx,i)
-    );        
+    return vec3(normalize(
+        k.xyy * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.xyy,i,max_iterations) + 
+        k.yyx * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.yyx,i,max_iterations) + 
+        k.yxy * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.yxy,i,max_iterations) + 
+        k.xxx * estimate_distance(p + NORMAL_STEP_MULTIPLIER * k.xxx,i,max_iterations)
+    ));
 }
 
-vec2 phong(vec3 p,vec3 light_pos) {
+vec2 phong(vec3 p,vec3 light_pos,int max_iterations,float de_stop) {
     vec3 l = light_pos - p;
     vec3 dp = normalize(l);
     float distance_to_light = length(l);
-    vec3 n = estimate_normal(p);
+    vec3 n = estimate_normal(p,max_iterations);
     float diff = dot(n,dp);
     if (diff < 0) {
         return vec2(0,0);
@@ -205,15 +196,15 @@ vec2 phong(vec3 p,vec3 light_pos) {
     p += SHADOW_OFFSET * dp;
     float total_distance = SHADOW_OFFSET;
     float closest_distance = MAX_DISTANCE;
-    float de = float(estimate_distance(p,i));
+    float de = float(estimate_distance(p,i,max_iterations));
     while ((total_distance < MAX_DISTANCE) && (distance_to_light > 0.0)) {
-        if (de < 0.5 * DE_STOP) {
+        if (de < 0.5 * de_stop) {
             return vec2(0,0);
         }
         total_distance += de;
         distance_to_light -= de;
         p += de * dp;
-        de = float(estimate_distance(p,i));
+        de = float(estimate_distance(p,i,max_iterations));
         closest_distance = min(closest_distance,de / total_distance);
     }
     float spec = pow(dot(normalize(dot(n,l) * n - normalize(l)),dp),128.0);
@@ -223,42 +214,53 @@ vec2 phong(vec3 p,vec3 light_pos) {
     //return vec2(diff,0.0);
 }
 
-vec4 march(vec3 p,vec3 dp,vec3 light_pos) {
-
-    float total_distance = 0.0;
+vec4 march(
+    vec3 ray_p,
+    vec3 ray_dp,
+    vec3 light_pos,
+    int max_iterations,
+    float z_step_div,
+    float initial_de_stop,
+    float de_stop_factor,
+    float de_sub,
+    float mctmh04zsd
+) {
+    VEC3 p = VEC3(ray_p);
+    VEC3 dp = VEC3(ray_dp);
+    FLOAT total_distance = 0.0;
     bool object_visible = false;
     int steps = 0;
     int i = 0;
-    float de_stop = DE_STOP;
-    float de = float(estimate_distance(p,i));
-    if ((i >= MAX_ITERATIONS) || (de < de_stop)) {
+    FLOAT de_stop = initial_de_stop;
+    FLOAT de = estimate_distance(p,i,max_iterations);
+    if ((i >= max_iterations) || (de < de_stop)) {
         object_visible = true;
     }
     else {
-        float last_step_width = de * Z_STEP_DIV;
+        FLOAT last_step_width = de * z_step_div;
         while (total_distance < MAX_DISTANCE) {
-            if (i >= MAX_ITERATIONS) {
-                float half_de = 0.5 * de;
+            if (i >= max_iterations) {
+                FLOAT half_de = 0.1 * de;
                 total_distance -= half_de;
                 p -= half_de * dp;
-                de = float(estimate_distance(p,i));
+                de = estimate_distance(p,i,max_iterations);
             }
-            if ((i >= MAX_ITERATIONS) || (de < de_stop)) {
+            if ((i >= max_iterations) || (de < de_stop)) {
                 object_visible = true;
                 break;
             }
             else {
                 /*float last_de = de;
-                de = max(0.11,(de - DE_SUB * de_stop) * Z_STEP_DIV);
-                float de1 = max(0.4,de_stop) * MCTMH04ZSD;
+                de = max(0.11,(de - de_sub * de_stop) * z_step_div);
+                float de1 = max(0.4,de_stop) * mctmh04zsd;
                 if (de1 < de) {
                     de = de1;
                 }
                 last_step_width = de;*/
                 total_distance += de;
                 p += de * dp;
-                //de_stop = DE_STOP * (1.0 + total_distance * DE_STOP_FACTOR);
-                de = float(estimate_distance(p,i));
+                de_stop = initial_de_stop * (1.0 + total_distance * de_stop_factor);
+                de = estimate_distance(p,i,max_iterations);
                 /*if (de > last_de + last_step_width) {
                     de = last_de + last_step_width;
                 }*/
@@ -276,15 +278,15 @@ vec4 march(vec3 p,vec3 dp,vec3 light_pos) {
         //vec3 pixel = smallest_trap * OBJECT_COLOR + (1.0 - smallest_trap) * TRAP_COLOR;
 
         // ambient occlusion
-        float ao = 1 - float(steps) / float(MAX_STEPS);
+        float ao = 1 - clamp(float(steps) / float(MAX_STEPS),0.0,1.0);
         pixel = ao * pixel;
 
         // lighting
-        vec2 ph = phong(p,light_pos);
+        vec2 ph = phong(vec3(p),light_pos,max_iterations,float(de_stop));
         pixel = (AMBIENT_COLOR + ph.x * LIGHT_COLOR) * pixel + ph.y * LIGHT_COLOR;
 
         // fog
-        float f = total_distance / MAX_DISTANCE;
+        float f = float(total_distance) / MAX_DISTANCE;
         f = f * f;
         pixel = (1 - f) * pixel + f * BACKGROUND_COLOR;
     }
@@ -295,6 +297,14 @@ vec4 march(vec3 p,vec3 dp,vec3 light_pos) {
 // MAIN
 
 void main() {
+
+    // fetch params
+    int max_iterations = int(params.x);
+    float z_step_div = params.y;
+    float de_stop = params.z;
+    float de_stop_factor = params.w;
+    float de_sub = min(sqrt(z_step_div),0.9);
+    float mctmh04zsd = 0.5 * max(refs.x,refs.y) * sqrt(z_step_div + 0.001);
 
     // construct a screen at z = 1
     float f = tan(0.5 * refs.z);  // vertical FOV
@@ -310,7 +320,18 @@ void main() {
     vec3 light_pos = origin.xyz;
 
     // DO IT!
-    vec4 color = march(origin.xyz,dp,light_pos);
+    vec4 color = march(
+        origin.xyz,
+        dp,
+        light_pos,
+
+        max_iterations,
+        z_step_div,
+        de_stop,
+        de_stop_factor,
+        de_sub,
+        mctmh04zsd
+    );
 
     imageStore(out_frame,ivec2(gl_GlobalInvocationID.xy),color);
 }

@@ -21,16 +21,20 @@ use {
     },
 };
 
+/// 2x2 matrix of numbers.
 #[derive(Copy,Clone,Debug)]
-pub struct Mat2x2<T> {
+pub struct Mat2x2<T: Sized + Unsigned + Signed> {
     pub x: Vec2<T>,
     pub y: Vec2<T>,
 }
 
+// implementations where $t: Sized + Zero + One
 macro_rules! mat2x2_impl {
     ($($t:ty)+) => {
         $(
             impl Mat2x2<$t> {
+
+                /// Transpose the matrix.
                 pub fn transpose(self) -> Mat2x2<$t> {
                     Mat2x2 {
                         x: Vec2 {
@@ -44,6 +48,7 @@ macro_rules! mat2x2_impl {
                     }
                 }
 
+                /// Calculate determinant of matrix.
                 pub fn det(self) -> $t {
                     let a = self.x.x;
                     let b = self.y.x;
@@ -64,14 +69,8 @@ macro_rules! mat2x2_impl {
 
             impl One for Mat2x2<$t> {
                 const ONE: Mat2x2<$t> = Mat2x2 {
-                    x: Vec2 {
-                        x: <$t>::ONE,
-                        y: <$t>::ZERO,
-                    },
-                    y: Vec2 {
-                        x: <$t>::ZERO,
-                        y: <$t>::ONE,
-                    },
+                    x: Vec2::<$t>::UNIT_X,
+                    y: Vec2::<$t>::UNIT_Y,
                 };
             }
 
@@ -87,7 +86,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix + matrix
+            /// Matrix + matrix.
             impl Add<Mat2x2<$t>> for Mat2x2<$t> {
                 type Output = Self;
                 fn add(self,other: Self) -> Self::Output {
@@ -98,7 +97,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix += matrix
+            /// Matrix += matrix.
             impl AddAssign<Mat2x2<$t>> for Mat2x2<$t> {
                 fn add_assign(&mut self,other: Self) {
                     self.x += other.x;
@@ -106,7 +105,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix - matrix
+            /// Matrix - matrix.
             impl Sub<Mat2x2<$t>> for Mat2x2<$t> {
                 type Output = Self;
                 fn sub(self,other: Self) -> Self::Output {
@@ -117,7 +116,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix -= matrix
+            /// Matrix -= matrix.
             impl SubAssign<Mat2x2<$t>> for Mat2x2<$t> {
                 fn sub_assign(&mut self,other: Self) {
                     self.x -= other.x;
@@ -125,7 +124,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // scalar * matrix
+            /// Scalar * matrix.
             impl Mul<Mat2x2<$t>> for $t {
                 type Output = Mat2x2<$t>;
                 fn mul(self,other: Mat2x2<$t>) -> Self::Output {
@@ -136,7 +135,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix * scalar
+            /// Matrix * scalar.
             impl Mul<$t> for Mat2x2<$t> {
                 type Output = Mat2x2<$t>;
                 fn mul(self,other: $t) -> Self::Output {
@@ -147,7 +146,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix * vector
+            /// Matrix * vector.
             impl Mul<Vec2<$t>> for Mat2x2<$t> {
                 type Output = Vec2<$t>;
                 fn mul(self,other: Vec2<$t>) -> Self::Output {
@@ -158,7 +157,9 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix * matrix
+            // Vector * matrix is not defined.
+
+            /// Matrix * matrix.
             impl Mul<Mat2x2<$t>> for Mat2x2<$t> {
                 type Output = Mat2x2<$t>;
                 fn mul(self,other: Mat2x2<$t>) -> Self::Output {
@@ -169,7 +170,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix *= scalar
+            /// Matrix *= scalar.
             impl MulAssign<$t> for Mat2x2<$t> {
                 fn mul_assign(&mut self,other: $t) {
                     self.x *= other;
@@ -177,7 +178,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix *= matrix
+            /// Matrix *= matrix.
             impl MulAssign<Mat2x2<$t>> for Mat2x2<$t> {
                 fn mul_assign(&mut self,other: Mat2x2<$t>) {
                     let m = *self * other;
@@ -185,7 +186,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix / scalar
+            /// Matrix / scalar.
             impl Div<$t> for Mat2x2<$t> {
                 type Output = Mat2x2<$t>;
                 fn div(self,other: $t) -> Self::Output {
@@ -196,7 +197,7 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // matrix /= scalar
+            /// Matrix /= scalar.
             impl DivAssign<$t> for Mat2x2<$t> {
                 fn div_assign(&mut self,other: $t) {
                     self.x /= other;
@@ -204,7 +205,9 @@ macro_rules! mat2x2_impl {
                 }
             }
 
-            // -matrix
+            // scalar / matrix is only defined for matrices of real numbers
+
+            /// -Matrix
             impl Neg for Mat2x2<$t> {
                 type Output = Mat2x2<$t>;
                 fn neg(self) -> Self::Output {
@@ -220,10 +223,13 @@ macro_rules! mat2x2_impl {
 
 mat2x2_impl! { isize i8 i16 i32 i64 i128 f32 f64 }
 
+// implementations where $t: Real
 macro_rules! mat2x2_real_impl {
     ($($t:ty)+) => {
         $(
             impl Mat2x2<$t> {
+
+                /// Calculate inverse of matrix.
                 pub fn inv(self) -> Self {
                     let a = self.x.x;
                     let b = self.y.x;
@@ -244,7 +250,7 @@ macro_rules! mat2x2_real_impl {
                 }
             }
 
-            // scalar / matrix
+            /// Scalar / matrix.
             impl Div<Mat2x2<$t>> for $t {
                 type Output = Mat2x2<$t>;
                 fn div(self,other: Mat2x2<$t>) -> Self::Output {
@@ -252,7 +258,7 @@ macro_rules! mat2x2_real_impl {
                 }
             }
 
-            // matrix / matrix
+            /// Matrix / matrix.
             impl Div<Mat2x2<$t>> for Mat2x2<$t> {
                 type Output = Mat2x2<$t>;
                 fn div(self,other: Mat2x2<$t>) -> Self::Output {
@@ -260,7 +266,7 @@ macro_rules! mat2x2_real_impl {
                 }
             }
 
-            // matrix /= matrix
+            /// Matrix /= matrix.
             impl DivAssign<Mat2x2<$t>> for Mat2x2<$t> {
                 fn div_assign(&mut self,other: Mat2x2<$t>) {
                     *self *= other.inv()

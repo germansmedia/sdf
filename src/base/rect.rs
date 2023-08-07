@@ -8,6 +8,7 @@ use {
     },
 };
 
+/// Rectangle.
 #[derive(Copy,Clone,Debug)]
 pub struct Rect<T> {
     pub o: Vec2<T>,
@@ -20,6 +21,14 @@ macro_rules! rect_impl {
             impl Display for Rect<$t> {
                 fn fmt(&self,f: &mut Formatter) -> Result {
                     write!(f,"({},{} {}x{})",self.o.x,self.o.y,self.s.x,self.s.y)
+                }
+            }
+
+            impl Rect<$t> {
+
+                /// Test if point is inside rectangle.
+                pub fn contains(&self,p: Vec2<$t>) -> bool {
+                    (p.x >= self.o.x) && (p.y >= self.o.y) && (p.x < self.o.x + self.s.x) && (p.y < self.o.y + self.s.y)
                 }
             }
         )+
