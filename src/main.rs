@@ -150,7 +150,7 @@ fn main() -> Result<(),String> {
     let mb3d = decode_mb3d(&encoded)?;
     dump_mb3d(&mb3d);
 
-    let r = Rect { o: Vec2{ x: 0i32,y: 0i32, },s: Vec2 { x: 1024i32,y: 1024i32, }, };
+    let r = Rect { o: Vec2{ x: 0i32,y: 0i32, },s: Vec2 { x: 1024i32,y: 438i32, }, };
 
     let system = Rc::new(System::open()?);
     let frame = Rc::new(system.create_frame(Rect { o: Vec2 { x: 10i32,y: 10i32, },s: r.s, },"Performance SDF",)?);
@@ -173,20 +173,20 @@ fn main() -> Result<(),String> {
 
     let compute_pipeline = Rc::new(gpu.create_compute_pipeline(Rc::clone(&pipeline_layout),Rc::clone(&compute_shader))?);
 
-    let mut pos = Vec3::<f32> { x: 0.0,y: 0.0,z: -50.0, };
+    let mut pos = Vec3::<f32> { x: 0.0,y: 0.0,z: -30.0, };
     let mut dir = Quaternion::<f32>::ONE;
     let mut state = State {
         view: Mat4x4::<f32>::from_mv(Mat3x3::from(dir),pos),
         size: Vec2 { x: r.s.x as f32,y: r.s.y as f32, },
-        fovy: 60.0.to_radians(),
+        fovy: 72.0.to_radians(),
         scale: 1.0,
         mode: VisualizationMode::Output,
-        max_steps: 100,
-        max_iterations: 10,
+        max_steps: 1000,
+        max_iterations: 20,
         tbd0: 0,
-        horizon: 200.0,
+        horizon: 100.0,
         escape: 4.0,
-        de_stop: 0.001,
+        de_stop: 100.0,
         tbd2: 0,
         colors: [
             Vec4 { x: 0.0,y: 0.0,z: 0.0, w: 1.0, },
@@ -206,13 +206,13 @@ fn main() -> Result<(),String> {
             Vec4 { x: 0.3,y: 0.3,z: 0.1, w: 1.0, },
             Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
         ],
-        key_light_pos: Vec4 { x: 0.0,y: -10.0,z: 0.0, w: 1.0, },  // somewhere above the origin
+        key_light_pos: Vec4 { x: -20.0,y: -30.0,z: -10.0, w: 1.0, },  // somewhere above the origin
         key_light_color: Vec4 { x: 1.64,y: 1.27,z: 0.99, w: 1.0, },  // very bright yellow
-        key_shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 1.0, },  // key shadow power (a = sharpness)
+        key_shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 1.0, },  // key shadow power (a = softness)
         sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
         background_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },  // background color
-        glow_color: Vec4 { x: 0.3,y: 0.5,z: 0.4,w: 1.0, },        // glow color (a = sharpness)
+        glow_color: Vec4 { x: 0.3,y: 0.5,z: 0.4,w: 0.2, },        // glow color (a = power)
     };
 
     let uniform_buffer = Rc::new(gpu.create_uniform_buffer(&state)?);
@@ -426,7 +426,7 @@ fn main() -> Result<(),String> {
 
         // process parameter updates
         state.scale = (state.scale * d_scale).clamp(0.00001,10.0);
-        state.de_stop = (state.de_stop * d_de_stop).clamp(0.00001,1.0);
+        state.de_stop = (state.de_stop * d_de_stop).clamp(100.0,10000.0);
 
         // print which parameters got updated
         if d_scale != 1.0 {

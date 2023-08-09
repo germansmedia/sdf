@@ -34,7 +34,7 @@ layout (std140,binding = 0) readonly uniform State {
 
     vec4 state_key_light_color;   // key light color
 
-    vec4 state_key_shadow_power;  // key shadow power (a = sharpness)
+    vec4 state_key_shadow_power;  // key shadow power (a = softness)
 
     vec4 state_sky_light_color;   // sky light color (a = fog strength)
 
@@ -42,7 +42,7 @@ layout (std140,binding = 0) readonly uniform State {
 
     vec4 state_background_color;  // background color;
 
-    vec4 state_glow_color;        // glow color (a = sharpness)
+    vec4 state_glow_color;        // glow color (a = power)
 };
 
 layout (binding = 1) writeonly uniform image2D out_frame;
@@ -62,50 +62,31 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 
 #include "base.glsl"
 
-#define MANDELBOX_FOLD 1.0
-#define MANDELBOX_SCALE 2.0
-#define MANDELBOX_RADIUS 0.5
-
-/*
-void query_mandelbox(
-    VEC3 p,        // sampling point
-    out FLOAT r,   // length of iterator
-    out FLOAT dr,  // some sort of derivative of iterator
-    out uint i     // iteration count
-) {
-
+// Mandelbox
+FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 v = p;
-    r = 0.0;
-    dr = 1.0;
-    for(i = 0; (i < state_max_iterations) && (r < state_escape); i++) {
-
-        // MandelBox, to test if/how this works
-        v = 2.0 * clamp(v,-MANDELBOX_FOLD,MANDELBOX_FOLD) - v;
-        FLOAT r2 = dot(v,v);
-        if (r2 < MANDELBOX_RADIUS) {
-            v += v;
-            dr += dr;
+    FLOAT dr = 1.0;
+    for (i = 0; i < state_max_iterations; i++) {
+    	v = clamp(v, -1.0, 1.0) * 2.0 - v;
+        float r2 = dot(v,v);
+        if (r2 < 0.5) {
+            v *= 2.0;
+            dr *= 2.0;
         }
         else if (r2 < 1.0) {
-            FLOAT t = 1.0 / r2;
+            float t = 1.0 / r2;
             v *= t;
             dr *= t;
         }
-        v = MANDELBOX_SCALE * v + p;
-        dr = MANDELBOX_SCALE * dr + 1.0;
-
-        r = length(v);
+        v = 2.0 * v + p;
+        dr = 2.0 * dr + 1.0;
     }
-}
-
-FLOAT query_distance(VEC3 p,out uint i) {
-    FLOAT r = 0.0;
-    FLOAT dr = 1.0;
-    query_fractal(p,r,dr,i);
+    FLOAT r = length(v);
     return r / abs(dr);
 }
-*/
 
+/*
+// Menger Sponge
 FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 q = abs(p) - VEC3(1.0);
     FLOAT d = length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
@@ -122,9 +103,10 @@ FLOAT query_distance(VEC3 p,out uint i) {
     }
     return d;
 }
+*/
 
-VEC3 query_normal(VEC3 p) {
-    FLOAT h = 0.001 * state_scale;
+VEC3 query_normal(VEC3 p,float pixel_area) {
+    FLOAT h = pixel_area * state_scale;
     vec2 k = vec2(1,-1);
     uint i;
     return normalize(
@@ -160,7 +142,11 @@ void main() {
     float x = -1.0 + 2.0 * (float(gl_GlobalInvocationID.x) + 0.5) / state_size.x;
     float y = -1.0 + 2.0 * (float(gl_GlobalInvocationID.y) + 0.5) / state_size.y;
     vec3 origin = (state_view * vec4(0.0,0.0,0.0,1.0)).xyz;
-    vec3 screen = (state_view * vec4(f * x,f * aspect * y,1.0,1.0)).xyz;
+    vec3 screen = (state_view * vec4(f * aspect * x,f * y,1.0,1.0)).xyz;
+
+    // calculate the area  of a single pixel
+    float fpp = 2.0 * f / state_size.y;
+    float pixel_area = fpp * fpp;
 
     // convert to f64 (if enabled)
     VEC3 p = VEC3(origin);
@@ -175,7 +161,7 @@ void main() {
     for(steps = 0; (steps < state_max_steps) && (r < state_scale * state_horizon); steps++) {
         FLOAT de = query_distance(p + r * dp,iterations);
         closest = min(closest,de);
-        if (de < state_de_stop) {
+        if (de < state_de_stop * pixel_area * r) {
             closest = 0.0;
             hit = true;
             break;
@@ -200,7 +186,7 @@ void main() {
         p += r * dp;
 
         // calculate normal at p
-        n = query_normal(p);
+        n = query_normal(p,pixel_area);
 
         // cheap ambient occlusion
         occlusion = 1.0 - clamp(float(steps) / float(state_max_steps),0.0,1.0);
@@ -218,13 +204,18 @@ void main() {
             for(steps = 0; (steps < state_max_steps) && (rl < rl_max); steps++) {
                 FLOAT de = query_distance(p + rl * dl,i);
                 closest = min(closest,de);
-                if (de < state_de_stop) {
+                if (de < state_de_stop * pixel_area * r) {
                     closest = 0.0;
                     break;
                 }
                 rl += de;
             }
-            shadow = clamp(state_key_shadow_power.a * closest / rl,0.0,1.0);
+            if (closest > 0.0) {
+                shadow = clamp((state_key_shadow_power.a - closest) / state_key_shadow_power.a,0.0,1.0);
+            }
+            else {
+                shadow = 0.0;
+            }
         }
 
         // diffuse key light
@@ -242,9 +233,10 @@ void main() {
         diff += gi_light * state_gi_light_color.rgb * occlusion;
 
         // apply light and fog to this pixel
-        float fog = clamp(state_sky_light_color.a * depth,0.0,1.0);
-        pixel = mix(state_colors[iterations & 15].rgb * diff,pixel,fog);
+        float fog = clamp(state_background_color.a * depth,0.0,1.0);
+        //pixel = mix(state_colors[iterations & 15].rgb * diff,pixel,fog);
         //pixel = state_colors[iterations & 15].rgb * diff;
+        pixel = mix(vec3(0.3,0.3,0.3) * diff,pixel,fog);
     }
 
     // prepare output
