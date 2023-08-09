@@ -58,6 +58,8 @@ const KEY_ARROW_UP: u32 = 111;
 const KEY_ARROW_DOWN: u32 = 116;
 const KEY_ARROW_LEFT: u32 = 113;
 const KEY_ARROW_RIGHT: u32 = 114;
+const KEY_OBRACK: u32 = 34;
+const KEY_CBRACK: u32 = 35;
 const KEY_Q: u32 = 24;
 const KEY_A: u32 = 38;
 const KEY_W: u32 = 25;
@@ -66,20 +68,74 @@ const KEY_E: u32 = 26;
 const KEY_D: u32 = 40;
 const KEY_R: u32 = 27;
 const KEY_F: u32 = 41;
+const KEY_ESC: u32 = 9;
+const KEY_F1: u32 = 67;
+const KEY_F2: u32 = 68;
+const KEY_F3: u32 = 69;
+const KEY_F4: u32 = 70;
+const KEY_F5: u32 = 71;
+const KEY_F6: u32 = 72;
+const KEY_F7: u32 = 73;
+const KEY_F8: u32 = 74;
+const KEY_F9: u32 = 75;
+const KEY_F10: u32 = 76;
+const KEY_F11: u32 = 95;
+const KEY_F12: u32 = 96;
 
 const FOVY_DEG: f32 = 40.0;
 const FORWARD_SENSITIVITY: f32 = 0.1;
 const STRAFE_SENSITIVITY: f32 = 0.1;
 const POINTER_SENSITIVITY: f32 = 0.001;
-const ITERATIONS_SENSITIVITY: f32 = 0.1;
-const Z_STEP_SENSITIVITY: f32 = 0.01;
-const DE_STOP_SENSITIVITY: f32 = 0.99;
-const FACTOR_SENSITIVITY: f32 = 0.99;
 
+const SCALE_FACTOR: f32 = 1.01;
+const DE_STOP_FACTOR: f32 = 1.01;
+
+#[repr(u32)]
+enum VisualizationMode {
+    Output,
+    Depth,
+    Normal,
+    DepthRB,
+    IterationsRB,
+    StepsRB,
+    Occlusion,
+    NoShadow,
+}
+
+#[repr(C)]
 struct State {
-    view: Mat4x4<f32>,  // view transformation
-    refs: Vec4<f32>,  // x: r.s.x as f32,y: r.s.y as f32,z: fovy,w: unused
-    params: Vec4<f32>,  // x: max. iterations, y: z_step_div, z: initial de_stop, w: de_stop_factor
+
+    view: Mat4x4<f32>,            // view matrix
+
+    size: Vec2<f32>,              // size of the output, in pixels
+    fovy: f32,                    // vertical FoV
+    scale: f32,                   // generic scale of the operation
+
+    mode: VisualizationMode,      // visualization mode
+    max_steps: u32,               // maximum number of ray marching steps
+    max_iterations: u32,          // maximum number of iterations
+    tbd0: u32,
+
+    horizon: f32,                 // furthest distance to view
+    escape: f32,                  // fractal iteration escape value
+    de_stop: f32,                 // closest approach to the fractal
+    tbd2: u32,
+
+    colors: [Vec4<f32>; 16],      // primary color table
+
+    key_light_pos: Vec4<f32>,     // key light position
+
+    key_light_color: Vec4<f32>,   // key light color
+
+    key_shadow_power: Vec4<f32>,  // key shadow power (a = sharpness)
+
+    sky_light_color: Vec4<f32>,   // sky light color (a = fog strength)
+
+    gi_light_color: Vec4<f32>,    // ambient light color
+
+    background_color: Vec4<f32>,  // background color
+
+    glow_color: Vec4<f32>,        // glow color (a = sharpness)
 }
 
 fn main() -> Result<(),String> {
@@ -121,18 +177,42 @@ fn main() -> Result<(),String> {
     let mut dir = Quaternion::<f32>::ONE;
     let mut state = State {
         view: Mat4x4::<f32>::from_mv(Mat3x3::from(dir),pos),
-        refs: Vec4::<f32> {
-            x: r.s.x as f32,
-            y: r.s.y as f32,
-            z: FOVY_DEG.to_radians(),
-            w: 0.0,
-        },
-        params: Vec4::<f32> {
-            x: 30.0,
-            y: 0.3,
-            z: 0.0001,
-            w: 1.0,
-        },
+        size: Vec2 { x: r.s.x as f32,y: r.s.y as f32, },
+        fovy: 60.0.to_radians(),
+        scale: 1.0,
+        mode: VisualizationMode::Output,
+        max_steps: 100,
+        max_iterations: 10,
+        tbd0: 0,
+        horizon: 200.0,
+        escape: 4.0,
+        de_stop: 0.001,
+        tbd2: 0,
+        colors: [
+            Vec4 { x: 0.0,y: 0.0,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.0,z: 0.2, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.2,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.2,z: 0.2, w: 1.0, },
+            Vec4 { x: 0.2,y: 0.0,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.2,y: 0.0,z: 0.2, w: 1.0, },
+            Vec4 { x: 0.2,y: 0.2,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.2,y: 0.2,z: 0.2, w: 1.0, },
+            Vec4 { x: 0.1,y: 0.1,z: 0.1, w: 1.0, },
+            Vec4 { x: 0.1,y: 0.1,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.1,y: 0.3,z: 0.1, w: 1.0, },
+            Vec4 { x: 0.1,y: 0.3,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.1,z: 0.1, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.1,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.3,z: 0.1, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
+        ],
+        key_light_pos: Vec4 { x: 0.0,y: -10.0,z: 0.0, w: 1.0, },  // somewhere above the origin
+        key_light_color: Vec4 { x: 1.64,y: 1.27,z: 0.99, w: 1.0, },  // very bright yellow
+        key_shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 1.0, },  // key shadow power (a = sharpness)
+        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },   // sky light color (a = fog strength)
+        gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
+        background_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },  // background color
+        glow_color: Vec4 { x: 0.3,y: 0.5,z: 0.4,w: 1.0, },        // glow color (a = sharpness)
     };
 
     let uniform_buffer = Rc::new(gpu.create_uniform_buffer(&state)?);
@@ -145,9 +225,12 @@ fn main() -> Result<(),String> {
     let rendered_semaphore = Rc::new(gpu.create_semaphore()?);
 
     let mut delta: Vec2<f32> = Vec2::ZERO;
-    let mut params_delta: Vec4<f32> = Vec4 { x: 0.0,y: 0.0,z: 1.0,w: 1.0, };
     let mut prev_position: Vec2<f32> = Vec2::ZERO;
-    let mut left_pressed = false;
+    let mut button_pressed = false;
+
+    let mut d_scale = 1.0;
+    let mut d_de_stop = 1.0;
+
     let mut close_clicked = false;
     while !close_clicked {
 
@@ -165,29 +248,76 @@ fn main() -> Result<(),String> {
                     match event {
                         KeyEvent::Press { code } => {
                             match code {
+                                // forward/backward
                                 KEY_ARROW_UP => {
-                                    delta.y = FORWARD_SENSITIVITY;
+                                    delta.y = FORWARD_SENSITIVITY * state.scale;
                                 },
                                 KEY_ARROW_DOWN => {
-                                    delta.y = -FORWARD_SENSITIVITY;
+                                    delta.y = -FORWARD_SENSITIVITY * state.scale;
                                 },
+
+                                // strafing
                                 KEY_ARROW_LEFT => {
-                                    delta.x = -STRAFE_SENSITIVITY;
+                                    delta.x = -STRAFE_SENSITIVITY * state.scale;
                                 },
                                 KEY_ARROW_RIGHT => {
-                                    delta.x = STRAFE_SENSITIVITY;
+                                    delta.x = STRAFE_SENSITIVITY * state.scale;
                                 },
+
+                                // change mode
+                                KEY_F1 => {
+                                    state.mode = VisualizationMode::Output;
+                                    println!("visualization mode: output");
+                                },
+                                KEY_F2 => {
+                                    state.mode = VisualizationMode::Depth;
+                                    println!("visualization mode: depth");
+                                },
+                                KEY_F3 => {
+                                    state.mode = VisualizationMode::Normal;
+                                    println!("visualization mode: normal");
+                                },
+                                KEY_F4 => {
+                                    state.mode = VisualizationMode::DepthRB;
+                                    println!("visualization mode: depth (colored)");
+                                },
+                                KEY_F5 => {
+                                    state.mode = VisualizationMode::IterationsRB;
+                                    println!("visualization mode: iterations");
+                                },
+                                KEY_F6 => {
+                                    state.mode = VisualizationMode::StepsRB;
+                                    println!("visualization mode: march steps");
+                                },
+                                KEY_F7 => {
+                                    state.mode = VisualizationMode::Occlusion;
+                                    println!("visualization mode: occlusion");
+                                },
+                                KEY_F8 => {
+                                    state.mode = VisualizationMode::NoShadow;
+                                    println!("visualization mode: output (no shadows)");
+                                }
+
+                                KEY_OBRACK => {
+                                    d_scale = SCALE_FACTOR;
+                                },
+                                KEY_CBRACK => {
+                                    d_scale = 1.0 / SCALE_FACTOR;
+                                },
+
                                 KEY_Q => {
-                                    params_delta.x = ITERATIONS_SENSITIVITY;
+                                    d_de_stop = DE_STOP_FACTOR;
                                 },
                                 KEY_A => {
-                                    params_delta.x = -ITERATIONS_SENSITIVITY;
+                                    d_de_stop = 1.0 / DE_STOP_FACTOR;
                                 },
+
+                                /*
                                 KEY_W => {
-                                    params_delta.y = Z_STEP_SENSITIVITY;
+                                    params_delta.y = RAY_FACTOR_SENSITIVITY;
                                 },
                                 KEY_S => {
-                                    params_delta.y = -Z_STEP_SENSITIVITY;
+                                    params_delta.y = -RAY_FACTOR_SENSITIVITY;
                                 },
                                 KEY_E => {
                                     params_delta.z = DE_STOP_SENSITIVITY;
@@ -201,6 +331,8 @@ fn main() -> Result<(),String> {
                                 KEY_F => {
                                     params_delta.w = 1.0 / FACTOR_SENSITIVITY;
                                 }
+                                */
+
                                 _ => {
                                     println!("pressed {}",code);
                                 },
@@ -208,15 +340,28 @@ fn main() -> Result<(),String> {
                         },
                         KeyEvent::Release { code } => {
                             match code {
+
+                                KEY_ESC => {
+                                    close_clicked = true;
+                                },
+
                                 KEY_ARROW_UP | KEY_ARROW_DOWN => {
                                     delta.y = 0.0;
                                 },
                                 KEY_ARROW_LEFT | KEY_ARROW_RIGHT => {
                                     delta.x = 0.0;
                                 },
-                                KEY_Q | KEY_A => {
-                                    params_delta.x = 0.0;
+
+                                KEY_F1 | KEY_F2 | KEY_F3 | KEY_F4 | KEY_F5 | KEY_F6 | KEY_F7 | KEY_F8 => { },
+
+                                KEY_OBRACK | KEY_CBRACK => {
+                                    d_scale = 1.0;
                                 },
+
+                                KEY_Q | KEY_A => {
+                                    d_de_stop = 1.0;
+                                },
+                                /*
                                 KEY_W | KEY_S => {
                                     params_delta.y = 0.0;
                                 },
@@ -225,7 +370,9 @@ fn main() -> Result<(),String> {
                                 },
                                 KEY_R | KEY_F => {
                                     params_delta.w = 1.0;
-                                }
+                                },
+                                */
+
                                 _ => {
                                     println!("released {}",code);
                                 },
@@ -237,17 +384,17 @@ fn main() -> Result<(),String> {
                     match event {
                         PointerEvent::Down { position,button, } => {
                             if let Button::Left = button {
-                                left_pressed = true;
+                                button_pressed = true;
                                 prev_position = position;
                             }
                         },
                         PointerEvent::Up { position: _,button, } => {
                             if let Button::Left = button {
-                                left_pressed = false;
+                                button_pressed = false;
                             }
                         },
                         PointerEvent::Move { position,.. } => {
-                            if left_pressed {
+                            if button_pressed {
                                 let dp = position - prev_position;
                                 dir *= Quaternion::<f32>::from_euler(-POINTER_SENSITIVITY * dp.y,POINTER_SENSITIVITY * dp.x,0.0);
                                 prev_position = position;
@@ -264,8 +411,8 @@ fn main() -> Result<(),String> {
 
         // only process last configure event
         if let Some(r) = configure_event {
-            state.refs.x = r.s.x as f32;
-            state.refs.y = r.s.y as f32;
+            state.size.x = r.s.x as f32;
+            state.size.y = r.s.y as f32;
             surface.set_rect(&r)?;
             rebuild_command_buffers(&surface,&mut command_buffers,&compute_pipeline,&pipeline_layout,&uniform_buffer,r.s)?;
         }
@@ -278,43 +425,19 @@ fn main() -> Result<(),String> {
         state.view = Mat4x4::<f32>::from_mv(rotation,pos);
 
         // process parameter updates
-        state.params.x = (state.params.x + params_delta.x).clamp(7.0,60.0);
-        state.params.y = (state.params.y + params_delta.y).clamp(0.01,0.5);
-        state.params.z = (state.params.z * params_delta.z).clamp(0.00001,0.1);
-        state.params.w = (state.params.w * params_delta.w).clamp(0.00001,0.1);
+        state.scale = (state.scale * d_scale).clamp(0.00001,10.0);
+        state.de_stop = (state.de_stop * d_de_stop).clamp(0.00001,1.0);
 
-        if params_delta.x != 0.0 {
-            println!("max. iterations = {}",state.params.x);
+        // print which parameters got updated
+        if d_scale != 1.0 {
+            println!("scale: {}",state.scale);
         }
-        if params_delta.y != 0.0 {
-            println!("z_step_div = {}",state.params.y);
-        }
-        if params_delta.z != 1.0 {
-            println!("de_stop = {}",state.params.z);
-        }
-        if params_delta.w != 1.0 {
-            println!("de_stop_factor = {}",state.params.w);
+        if d_de_stop != 1.0 {
+            println!("de_stop: {}",state.de_stop);
         }
 
         // and update everything to the shaders
         uniform_buffer.update(&state);
-
-        /*
-        {
-            let f = (0.5 * state.refs.z).tan();
-            let aspect = state.refs.x / state.refs.y;
-            let mx = aspect / f;
-            let my = 1.0 / f;
-            let x0 = -1.0 + 2.0 * (0.0 + 0.5) / state.refs.x;
-            let x1 = -1.0 + 2.0 * ((r.s.x - 1) as f32 + 0.5) / state.refs.x;
-            let y0 = -1.0 + 2.0 * (0.0 + 0.5) / state.refs.y;
-            let y1 = -1.0 + 2.0 * ((r.s.y - 1) as f32 + 0.5) / state.refs.y;
-            let screen0 = state.view * Vec4 { x: mx * x0,y: my * y0,z: 1.0,w: 1.0, };
-            let screen1 = state.view * Vec4 { x: mx * x1,y: my * y1,z: 1.0,w: 1.0, };
-            let origin = state.view * Vec4 { x: 0.0,y: 0.0,z: 0.0,w: 1.0, };
-            println!("origin: {}, screen0: {}, screen1: {}",origin,screen0,screen1);
-        }
-        */
 
         // acquire frame
         acquired_fence.reset()?;
