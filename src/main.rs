@@ -89,6 +89,7 @@ const POINTER_SENSITIVITY: f32 = 0.001;
 
 const SCALE_FACTOR: f32 = 1.01;
 const DE_STOP_FACTOR: f32 = 1.01;
+const ESCAPE_FACTOR: f32 = 0.1;
 
 #[repr(u32)]
 enum VisualizationMode {
@@ -99,7 +100,6 @@ enum VisualizationMode {
     IterationsRB,
     StepsRB,
     Occlusion,
-    NoShadow,
 }
 
 #[repr(C)]
@@ -127,7 +127,7 @@ struct State {
 
     key_light_color: Vec4<f32>,   // key light color
 
-    key_shadow_power: Vec4<f32>,  // key shadow power (a = sharpness)
+    shadow_power: Vec4<f32>,      // shadow power (a = sharpness)
 
     sky_light_color: Vec4<f32>,   // sky light color (a = fog strength)
 
@@ -182,10 +182,10 @@ fn main() -> Result<(),String> {
         scale: 1.0,
         mode: VisualizationMode::Output,
         max_steps: 1000,
-        max_iterations: 20,
+        max_iterations: 10,
         tbd0: 0,
         horizon: 100.0,
-        escape: 4.0,
+        escape: 10.0,
         de_stop: 100.0,
         tbd2: 0,
         colors: [
@@ -208,7 +208,7 @@ fn main() -> Result<(),String> {
         ],
         key_light_pos: Vec4 { x: -20.0,y: -30.0,z: -10.0, w: 1.0, },  // somewhere above the origin
         key_light_color: Vec4 { x: 1.64,y: 1.27,z: 0.99, w: 1.0, },  // very bright yellow
-        key_shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 1.0, },  // key shadow power (a = softness)
+        shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
         sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
         background_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },  // background color
@@ -230,6 +230,7 @@ fn main() -> Result<(),String> {
 
     let mut d_scale = 1.0;
     let mut d_de_stop = 1.0;
+    let mut d_escape = 0.0;
 
     let mut close_clicked = false;
     while !close_clicked {
@@ -293,10 +294,6 @@ fn main() -> Result<(),String> {
                                     state.mode = VisualizationMode::Occlusion;
                                     println!("visualization mode: occlusion");
                                 },
-                                KEY_F8 => {
-                                    state.mode = VisualizationMode::NoShadow;
-                                    println!("visualization mode: output (no shadows)");
-                                }
 
                                 KEY_OBRACK => {
                                     d_scale = SCALE_FACTOR;
@@ -311,14 +308,14 @@ fn main() -> Result<(),String> {
                                 KEY_A => {
                                     d_de_stop = 1.0 / DE_STOP_FACTOR;
                                 },
-
-                                /*
                                 KEY_W => {
-                                    params_delta.y = RAY_FACTOR_SENSITIVITY;
+                                    d_escape = ESCAPE_FACTOR;
                                 },
                                 KEY_S => {
-                                    params_delta.y = -RAY_FACTOR_SENSITIVITY;
+                                    d_escape = -ESCAPE_FACTOR;
                                 },
+
+                                /*
                                 KEY_E => {
                                     params_delta.z = DE_STOP_SENSITIVITY;
                                 },
@@ -352,7 +349,7 @@ fn main() -> Result<(),String> {
                                     delta.x = 0.0;
                                 },
 
-                                KEY_F1 | KEY_F2 | KEY_F3 | KEY_F4 | KEY_F5 | KEY_F6 | KEY_F7 | KEY_F8 => { },
+                                KEY_F1 | KEY_F2 | KEY_F3 | KEY_F4 | KEY_F5 | KEY_F6 | KEY_F7 => { },
 
                                 KEY_OBRACK | KEY_CBRACK => {
                                     d_scale = 1.0;
@@ -361,10 +358,10 @@ fn main() -> Result<(),String> {
                                 KEY_Q | KEY_A => {
                                     d_de_stop = 1.0;
                                 },
-                                /*
                                 KEY_W | KEY_S => {
-                                    params_delta.y = 0.0;
+                                    d_escape = 0.0;
                                 },
+                                /*
                                 KEY_E | KEY_D => {
                                     params_delta.z = 1.0;
                                 },
@@ -427,6 +424,7 @@ fn main() -> Result<(),String> {
         // process parameter updates
         state.scale = (state.scale * d_scale).clamp(0.00001,10.0);
         state.de_stop = (state.de_stop * d_de_stop).clamp(100.0,10000.0);
+        state.escape = (state.escape + d_escape).clamp(1.0,30.0);
 
         // print which parameters got updated
         if d_scale != 1.0 {
@@ -434,6 +432,9 @@ fn main() -> Result<(),String> {
         }
         if d_de_stop != 1.0 {
             println!("de_stop: {}",state.de_stop);
+        }
+        if d_escape != 0.0 {
+            println!("escape: {}",state.escape);
         }
 
         // and update everything to the shaders

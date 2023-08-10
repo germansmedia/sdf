@@ -2,14 +2,14 @@
 
 layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 
-#define MODE_OUTPUT        0
-#define MODE_DEPTH         1
-#define MODE_NORMAL        2
-#define MODE_DEPTH_RB      3
-#define MODE_ITERATIONS_RB 4
-#define MODE_STEPS_RB      5
-#define MODE_OCCLUSION_RB  6
-#define MODE_NO_SHADOW     7
+#define MODE_OUTPUT            0
+#define MODE_DEPTH             1
+#define MODE_NORMAL            2
+#define MODE_DEPTH_RB          3
+#define MODE_ITERATIONS_RB     4
+#define MODE_STEPS_RB          5
+#define MODE_OCCLUSION_RB      6
+
 
 layout (std140,binding = 0) readonly uniform State {
     mat4 state_view;              // view matrix
@@ -34,7 +34,7 @@ layout (std140,binding = 0) readonly uniform State {
 
     vec4 state_key_light_color;   // key light color
 
-    vec4 state_key_shadow_power;  // key shadow power (a = softness)
+    vec4 state_shadow_power;      // shadow power (a = sharpness)
 
     vec4 state_sky_light_color;   // sky light color (a = fog strength)
 
@@ -62,7 +62,13 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 
 #include "base.glsl"
 
+#if 0
 // Mandelbox
+#define RECIP_LIMITER1 1.37
+#define RECIP_LIMITER2 0.67
+#define RECIP_MUL1 1.775
+#define RECIP_MUL2 1.0
+
 FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 v = p;
     FLOAT dr = 1.0;
@@ -84,8 +90,9 @@ FLOAT query_distance(VEC3 p,out uint i) {
     FLOAT r = length(v);
     return r / abs(dr);
 }
+#endif
 
-/*
+#if 0
 // Menger Sponge
 FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 q = abs(p) - VEC3(1.0);
@@ -103,7 +110,101 @@ FLOAT query_distance(VEC3 p,out uint i) {
     }
     return d;
 }
-*/
+#endif
+
+#if 0
+// Koch Cube
+
+//#define KOCH_POST_SCALE 0.148106
+#define KOCH_POST_SCALE 2.0
+//#define KOCH_STRETCH 0.089698
+#define KOCH_STRETCH 1.0
+//#define KOCH_FOLD 0.049021
+#define KOCH_FOLD 1.0
+//#define KOCH_ADD VEC3(0.0396334,-0.081354,-0.003129)
+#define KOCH_ADD VEC3(0.0,0.0,0.0)
+#define KOCH_ROTATION MAT3(1.0,0.0,0.0, 0.0,1.0,0.0, 0.0,0.0,1.0)
+
+FLOAT query_distance(VEC3 p,out uint i) {
+    VEC3 v = p;
+    FLOAT dr = 1.0;
+    for (i = 0; i < state_max_iterations; i++) {
+        v = 3 * abs(v);
+        if (v.y <= v.x) {
+            v = v.yxz;
+        }
+        if (v.z <= v.x) {
+            v = v.zyx;
+        }
+        if (v.z <= v.y) {
+            v = v.xzy;
+        }
+        v = KOCH_ROTATION * (v + KOCH_ADD);
+        v.z = KOCH_FOLD - abs(KOCH_FOLD - v.z);
+        FLOAT ta = KOCH_STRETCH - 3;
+        FLOAT tb = KOCH_STRETCH + 3;
+        FLOAT td = v.x - ta;
+        FLOAT tc = v.x - tb;
+        if (v.y <= td) {
+            v.x = td;
+            v.y -= ta;
+        }
+        else if (v.y > tc) {
+            v.x = tc;
+        }
+        else {
+            v.x = v.y;
+            v.y = tc;
+        }
+        v = KOCH_POST_SCALE * vec3(v.x / KOCH_STRETCH,v.y / KOCH_STRETCH,v.z) + p;
+        dr = 3 * KOCH_POST_SCALE * dr / KOCH_STRETCH;
+    }
+    FLOAT r = length(v);
+    return r / abs(dr);
+}
+#endif
+
+#if 1
+// SierpHilbert
+#define SIERP_SCALE 3
+#define SIERP_EDGE1 2
+#define SIERP_EDGE2 1
+
+FLOAT query_distance(VEC3 p,out uint i) {
+    VEC3 v = p;
+    FLOAT dr = 1.0;
+    for (i = 0; i < state_max_iterations; i++) {
+        // v = rotation1 * v;
+        v.x = -v.x;
+        if (v.x >= v.y) {
+            v = v.yxz;
+        }
+        if (v.x >= v.z) {
+            v = v.zyx;
+        }
+        v.x = -v.x;
+        v = v.yxz;
+        v.x = -v.x;
+        if (v.x >= v.z) {
+            v = v.zyx;
+        }
+        v.x = -v.x;
+        v = v.yxz;
+        if (0 < SIERP_EDGE1) {
+            v.y = SIERP_EDGE1 - abs(SIERP_EDGE1 - v.y);
+        }
+        if (0 < SIERP_EDGE2) {
+            v.x = SIERP_EDGE2 - abs(SIERP_EDGE2 - v.x);
+        }
+        dr *= SIERP_SCALE;
+        //v = rotation2 * v;
+        v -= (SIERP_SCALE - 1); // * SIERP_CSCALE
+        v += p;
+    }
+    FLOAT r = length(v);
+    return r / abs(dr);
+}
+#endif
 
 VEC3 query_normal(VEC3 p,float pixel_area) {
     FLOAT h = pixel_area * state_scale;
@@ -124,14 +225,31 @@ VEC3 query_normal(VEC3 p,float pixel_area) {
 #define RB_RED vec3(1.0,0.0,0.0)
 
 vec3 rainbow(float f) {
-    uint i = min(uint(floor(4.0 * f)),3);
+    uint i = uint(floor(4.0 * f));
     float r = fract(4.0 * f);
     switch(i) {
         case 0: return mix(RB_PURPLE,RB_BLUE,r);
         case 1: return mix(RB_BLUE,RB_GREEN,r);
         case 2: return mix(RB_GREEN,RB_YELLOW,r);
         case 3: return mix(RB_YELLOW,RB_RED,r);
+        case 4: return RB_RED;
     }
+}
+
+float shadow_attenuation(vec3 p,vec3 dp,float r_max,float de_stop_mul) {
+    float att = 0.0;
+    float r = 0.0;
+    uint i = 0;
+    float closest = r_max;
+    for(uint steps = 0; (steps < state_max_steps) && (r < r_max); steps++) {
+        float de = query_distance(p + r * dp,i);
+        if (de < 0.1 * state_de_stop * de_stop_mul) {
+            return 0.0;
+        }
+        closest = min(closest,de / r);
+        r += de;
+    }
+    return clamp(state_shadow_power.a * closest,0.0,1.0);
 }
 
 void main() {
@@ -169,14 +287,16 @@ void main() {
         r += de;
     }
 
+    // initialize some stuff
+    VEC3 n = VEC3(0.0,0.0,0.0);
+    float occlusion = 1.0;
+    float depth = 1.0;
+    
     // start with background and glow
     float glow = 1.0 - clamp(pow(closest,state_glow_color.a),0.0,1.0);
     vec3 pixel = state_background_color.rgb + glow * state_glow_color.rgb;
 
     // if fractal was hit
-    VEC3 n = VEC3(0.0,0.0,0.0);
-    float occlusion = 1.0;
-    float depth = 1.0;
     if (hit) {
 
         // prepare final depth value
@@ -191,35 +311,18 @@ void main() {
         // cheap ambient occlusion
         occlusion = 1.0 - clamp(float(steps) / float(state_max_steps),0.0,1.0);
 
-        // soft shadow towards key light
-        float shadow = 1.0;
-        VEC3 dl = VEC3(state_key_light_pos) - p;
-        FLOAT rl_max = length(dl);
-        dl = normalize(dl);
-        if (state_mode != MODE_NO_SHADOW) {
-            FLOAT rl = 0.0;
-            uint i = 0;
-            uint steps = 0;
-            FLOAT closest = state_scale * state_horizon;
-            for(steps = 0; (steps < state_max_steps) && (rl < rl_max); steps++) {
-                FLOAT de = query_distance(p + rl * dl,i);
-                closest = min(closest,de);
-                if (de < state_de_stop * pixel_area * r) {
-                    closest = 0.0;
-                    break;
-                }
-                rl += de;
-            }
-            if (closest > 0.0) {
-                shadow = clamp((state_key_shadow_power.a - closest) / state_key_shadow_power.a,0.0,1.0);
-            }
-            else {
-                shadow = 0.0;
-            }
-        }
+        // soft shadow from key light
+        vec3 dkey_light = state_key_light_pos.xyz - p;
+        float r_max = length(dkey_light);
+        dkey_light = normalize(dkey_light);
+        float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,pixel_area * r);
 
         // diffuse key light
-        float key_light = clamp(dot(n,dl),0.0,1.0);
+        float key_light = clamp(dot(n,dkey_light),0.0,1.0);
+
+        // soft shadow from sky light
+        //vec3 dsky_light = vec3(0.0,1.0,0.0);
+        //float sky_shadow_att = shadow_attenuation(p,dsky_light,state_scale * state_horizon,pixel_area * r);
 
         // sky light
         float sky_light = clamp(0.5 + 0.5 * n.y,0.0,1.0);
@@ -228,7 +331,8 @@ void main() {
         float gi_light = 0.1;
 
         // combine lighting
-        vec3 diff = key_light * state_key_light_color.rgb * pow(vec3(shadow),state_key_shadow_power.rgb);
+        vec3 diff = key_light * state_key_light_color.rgb * pow(vec3(key_shadow_att),state_shadow_power.rgb);
+        //diff += sky_light * state_sky_light_color.rgb * pow(vec3(sky_shadow_att),state_shadow_power.rgb);
         diff += sky_light * state_sky_light_color.rgb * occlusion;
         diff += gi_light * state_gi_light_color.rgb * occlusion;
 
@@ -249,7 +353,6 @@ void main() {
         case MODE_ITERATIONS_RB: c = rainbow(clamp(0.05 * float(iterations),0.0,1.0)); break;
         case MODE_STEPS_RB: c = rainbow(clamp(0.05 * float(steps),0.0,1.0)); break;
         case MODE_OCCLUSION_RB: c = rainbow(1.0 - occlusion); break;
-        case MODE_NO_SHADOW: c = pixel; break;
     }
 
     // and draw

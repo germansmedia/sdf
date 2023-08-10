@@ -1,1 +1,1 @@
-glslc -fshader-stage=compute engine.glsl -o engine.spirv
+glslc -fshader-stage=compute -O engine.glsl -o engine.spirv
