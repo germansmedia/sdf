@@ -119,7 +119,12 @@ struct State {
     horizon: f32,                 // furthest distance to view
     escape: f32,                  // fractal iteration escape value
     de_stop: f32,                 // closest approach to the fractal
-    tbd2: u32,
+    focus: f32,                   // focus distance
+
+    aperture: f32,                // aperture radius
+    tbd1: f32,
+    tbd2: f32,
+    tbd3: f32,
 
     colors: [Vec4<f32>; 16],      // primary color table
 
@@ -182,12 +187,16 @@ fn main() -> Result<(),String> {
         scale: 1.0,
         mode: VisualizationMode::Output,
         max_steps: 1000,
-        max_iterations: 10,
+        max_iterations: 30,
         tbd0: 0,
         horizon: 100.0,
-        escape: 10.0,
-        de_stop: 100.0,
-        tbd2: 0,
+        escape: 40.0,
+        de_stop: 200.0,
+        focus: 10.0,
+        aperture: 0.1,
+        tbd1: 0.0,
+        tbd2: 0.0,
+        tbd3: 0.0,
         colors: [
             Vec4 { x: 0.0,y: 0.0,z: 0.0, w: 1.0, },
             Vec4 { x: 0.0,y: 0.0,z: 0.2, w: 1.0, },
@@ -207,12 +216,12 @@ fn main() -> Result<(),String> {
             Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
         ],
         key_light_pos: Vec4 { x: -20.0,y: -30.0,z: -10.0, w: 1.0, },  // somewhere above the origin
-        key_light_color: Vec4 { x: 1.64,y: 1.27,z: 0.99, w: 1.0, },  // very bright yellow
+        key_light_color: Vec4 { x: 1.64,y: 1.47,z: 0.99, w: 1.0, },  // very bright yellow
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
         sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
-        background_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },  // background color
-        glow_color: Vec4 { x: 0.3,y: 0.5,z: 0.4,w: 0.2, },        // glow color (a = power)
+        background_color: Vec4 { x: 0.0,y: 0.01,z: 0.10,w: 1.0, },  // background color
+        glow_color: Vec4 { x: 0.4,y: 0.4,z: 0.4,w: 0.1, },        // glow color (a = power)
     };
 
     let uniform_buffer = Rc::new(gpu.create_uniform_buffer(&state)?);
@@ -424,7 +433,7 @@ fn main() -> Result<(),String> {
         // process parameter updates
         state.scale = (state.scale * d_scale).clamp(0.00001,10.0);
         state.de_stop = (state.de_stop * d_de_stop).clamp(100.0,10000.0);
-        state.escape = (state.escape + d_escape).clamp(1.0,30.0);
+        state.escape = (state.escape + d_escape).clamp(1.0,100.0);
 
         // print which parameters got updated
         if d_scale != 1.0 {
