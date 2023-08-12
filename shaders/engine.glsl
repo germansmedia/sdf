@@ -231,7 +231,7 @@ FLOAT query_distance(VEC3 p,out uint i) {
 #if 1
 // Menger3
 #define MENGER3_SCALE 3.0
-#define MENGER3_CSCALE VEC3(3.2,0.3,1.9)
+#define MENGER3_CSCALE VEC3(0.9,1.2,1.8)
 #define MENGER3_ROTATION1 MAT3(0.9027011,-0.3816559,0.1986693,0.4057410,0.9087359,-0.0978434,-0.1431954,0.1689316,0.9751703)
 #define MENGER3_ROTATION2 MAT3(0.9987503,0.0000000,0.0499792,0.0004998,0.9999500,-0.0099873,-0.0499767,0.0099998,0.9987003)
 
@@ -241,12 +241,12 @@ FLOAT query_distance(VEC3 p,out uint i) {
     FLOAT r = length(v);
     for(i = 0; (i < state_max_iterations) && (r < state_escape); i++) {
         v = abs(v);
-        v = MENGER3_ROTATION1 * v;
+        //v = MENGER3_ROTATION1 * v;
         //v = MENGER3_ROTATION2 * v;
         if (v.x < v.y) { v = v.yxz; }
         if (v.x < v.z) { v = v.zyx; }
         if (v.y < v.z) { v = v.xzy; }
-        //v = MENGER3_ROTATION2 * v;
+        v = MENGER3_ROTATION2 * v;
         //v = MENGER3_ROTATION1 * v;
         dr = dr * MENGER3_SCALE;
         v *= MENGER3_SCALE;
@@ -315,7 +315,7 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
     for(steps = 0; (steps < state_max_steps) && (r < state_scale * state_horizon); steps++) {
         FLOAT de = query_distance(p + r * dp,iterations);
         closest = min(closest,de);
-        if (de < state_de_stop * pixel_area) {
+        if (de < state_de_stop * pixel_area * r) {
             closest = 0.0;
             hit = true;
             break;
@@ -346,7 +346,7 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
         vec3 dkey_light = state_key_light_pos.xyz - p;
         float r_max = length(dkey_light);
         dkey_light = normalize(dkey_light);
-        float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,pixel_area);
+        float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,pixel_area * r);
 
         // diffuse key light
         float key_light = clamp(dot(n,dkey_light),0.0,1.0);
@@ -356,7 +356,7 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
         //float sky_shadow_att = shadow_attenuation(p,dsky_light,state_scale * state_horizon,pixel_area * r);
 
         // sky light
-        float sky_light = clamp(0.5 + 0.5 * n.y,0.0,1.0);
+        float sky_light = clamp(0.5 - 0.5 * n.y,0.0,1.0);
 
         // Walmart global illumination
         float gi_light = 0.1;
@@ -431,16 +431,18 @@ void main() {
 
     // accumulate
     vec3 pixel = vec3(0.0,0.0,0.0);
-    pixel += march(p0,dp0,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p1,dp1,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p2,dp2,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p3,dp3,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p4,dp4,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p5,dp5,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p6,dp6,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p7,dp7,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += march(p,dp,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel /= 9.0;
+    pixel += 0.04 * march(p0,dp0,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.12 * march(p1,dp1,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.04 * march(p2,dp2,pixel_area,n,occlusion,depth,iterations,steps);
+
+    pixel += 0.12 * march(p3,dp3,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.12 * march(p4,dp4,pixel_area,n,occlusion,depth,iterations,steps);
+
+    pixel += 0.04 * march(p5,dp5,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.12 * march(p6,dp6,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.04 * march(p7,dp7,pixel_area,n,occlusion,depth,iterations,steps);
+
+    pixel += 0.36 * march(p,dp,pixel_area,n,occlusion,depth,iterations,steps);
 
     // prepare output
     vec3 c = vec3(0.0,0.0,0.0);
