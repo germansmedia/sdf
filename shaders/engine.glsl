@@ -9,6 +9,7 @@ layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 #define MODE_ITERATIONS_RB     4
 #define MODE_STEPS_RB          5
 #define MODE_OCCLUSION_RB      6
+#define MODE_DEBUG             7
 
 layout (std140,binding = 0) readonly uniform State {
     mat4 state_view;              // view matrix
@@ -72,7 +73,7 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #include "reciprocalz3b.glsl"
 #include "rotate4d.glsl"
 #include "amazingbox2.glsl"
-#include "polyfoldsym.glsl"
+//#include "polyfoldsym.glsl"
 
 #if 0
 // MandelBulb
@@ -104,27 +105,29 @@ FLOAT query_distance(VEC3 p,out uint i) {
     FLOAT r = length(v);
     i = 0;
     reciprocalz3b(v,dr,p);
-    r = length(v); if (r >= state_escape) return r / abs(dr);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
     rotate4d(v,dr,p);
-    r = length(v); if (r >= state_escape) return r / abs(dr);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
-    polyfoldsym(v,dr,p);
-    r = length(v); if (r >= state_escape) return r / abs(dr);
+    //polyfoldsym(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
+    /*
+    amazingbox2(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    i++;
+    */
+    amazingbox2(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
     amazingbox2(v,dr,p);
-    r = length(v); if (r >= state_escape) return r / abs(dr);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
     amazingbox2(v,dr,p);
-    r = length(v); if (r >= state_escape) return r / abs(dr);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
-    amazingbox2(v,dr,p);
-    r = length(v); if (r >= state_escape) return r / abs(dr);
-    i++;
-    amazingbox2(v,dr,p);
-    r = length(v); if (r >= state_escape) return r / abs(dr);
-    i++;
-    for (; (i < state_max_iterations) && (r < state_escape); i++) {
+    for (; (r < state_escape) && (i < state_max_iterations); i++) {
         kochcube(v,dr,p);
         r = length(v);
     }
@@ -135,7 +138,7 @@ FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 v = p;
     FLOAT dr = 1.0;
     FLOAT r = length(v);
-    for (i = 0; (i < state_max_iterations) && (r < state_escape); i++) {
+    for (i = 0; (r < state_escape) && (i < state_max_iterations); i++) {
         kochcube(v,dr,p);
         r = length(v);
     }
@@ -143,7 +146,7 @@ FLOAT query_distance(VEC3 p,out uint i) {
 }
 #endif
 
-VEC3 query_normal(VEC3 p,float pixel_area) {
+VEC3 query_normal(VEC3 p,FLOAT pixel_area) {
     FLOAT h = pixel_area * state_scale;
     vec2 k = vec2(1,-1);
     uint i;
@@ -173,23 +176,23 @@ vec3 rainbow(float f) {
     }
 }
 
-float shadow_attenuation(vec3 p,vec3 dp,float de_stop_mul,float r_max) {
+float shadow_attenuation(VEC3 p,VEC3 dp,FLOAT de_stop_mul,FLOAT r_max) {
     float att = 0.0;
-    float r = 0.0;
+    FLOAT r = 0.0;
     uint i = 0;
-    float closest = r_max;
+    FLOAT closest = r_max;
     for(uint steps = 0; (steps < state_max_steps) && (r < r_max); steps++) {
-        float de = query_distance(p + r * dp,i);
-        if (de < 0.1 * state_de_stop * de_stop_mul) {
+        FLOAT de = query_distance(p + r * dp,i);
+        r += de;
+        if ((de < 0.1 * state_de_stop * de_stop_mul) || (i > state_max_iterations)) {
             return 0.0;
         }
         closest = min(closest,de / r);
-        r += de;
     }
-    return clamp(state_shadow_power.a * closest,0.0,1.0);
+    return clamp(state_shadow_power.a * float(closest),0.0,1.0);
 }
 
-vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out float depth,out uint iterations,out uint steps) {
+vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out float depth,out uint iterations,out uint steps,out bool debug) {
 
     // march that ray
     FLOAT r = 0.0;
@@ -197,26 +200,29 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
     bool hit = false;
     for(steps = 0; (steps < state_max_steps) && (r < state_scale * state_horizon); steps++) {
         FLOAT de = query_distance(p + r * dp,iterations);
-        closest = min(closest,de);
-        //if (de < state_de_stop * pixel_area) {
-        if (de < state_de_stop * pixel_area) {
-        //if (de < 0.001 * state_de_stop) {
+        r += de;
+        if (iterations > state_max_iterations) {
+            r -= 0.5 * de;
+            de = query_distance(p + r * dp,iterations);
+            debug = true;
+        }
+        if ((de < state_de_stop * pixel_area) || (iterations > state_max_iterations)) {
             closest = 0.0;
             hit = true;
             break;
         }
-        r += de;
+        closest = min(closest,de);
     }
     
     // start with background and glow
-    float glow = 1.0 - clamp(pow(closest,state_glow_color.a),0.0,1.0);
+    float glow = 1.0 - clamp(pow(float(closest),state_glow_color.a),0.0,1.0);
     vec3 pixel = state_background_color.rgb + glow * state_glow_color.rgb;
 
     // if fractal was hit
     if (hit) {
 
         // prepare final depth value
-        depth = clamp(r / (state_scale * state_horizon),0.0,1.0);
+        depth = clamp(float(r) / (state_scale * state_horizon),0.0,1.0);
 
         // p is now the point of contact
         p += r * dp;
@@ -228,22 +234,22 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
         occlusion = 1.0 - clamp(float(steps) / float(state_max_steps),0.0,1.0);
 
         // soft shadow from key light
-        vec3 dkey_light = state_key_light_pos.xyz - p;
-        float r_max = length(dkey_light);
+        VEC3 dkey_light = state_key_light_pos.xyz - p;
+        FLOAT r_max = length(dkey_light);
         dkey_light = normalize(dkey_light);
         //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,scaled_pixel_area);
         float key_shadow_att = shadow_attenuation(p,dkey_light,pixel_area,r_max);
         //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,0.001);
 
         // diffuse key light
-        float key_light = clamp(dot(n,dkey_light),0.0,1.0);
+        float key_light = clamp(dot(vec3(n),vec3(dkey_light)),0.0,1.0);
 
         // soft shadow from sky light
         //vec3 dsky_light = vec3(0.0,1.0,0.0);
         //float sky_shadow_att = shadow_attenuation(p,dsky_light,state_scale * state_horizon,pixel_area * r);
 
         // sky light
-        float sky_light = clamp(0.5 - 0.5 * n.y,0.0,1.0);
+        float sky_light = clamp(0.5 - 0.5 * float(n.y),0.0,1.0);
 
         // Walmart global illumination
         float gi_light = 0.1;
@@ -288,6 +294,7 @@ void main() {
     float depth = 1.0;
     uint iterations = 0;
     uint steps = 0;
+    bool debug = false;
 
     // depth-of-field
     #if 0
@@ -319,20 +326,20 @@ void main() {
     VEC3 dp7 = normalize(pf - p7);
 
     vec3 pixel = vec3(0.0,0.0,0.0);
-    pixel += 0.04 * march(p0,dp0,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += 0.12 * march(p1,dp1,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += 0.04 * march(p2,dp2,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.04 * march(p0,dp0,pixel_area,n,occlusion,depth,iterations,steps,debug);
+    pixel += 0.12 * march(p1,dp1,pixel_area,n,occlusion,depth,iterations,steps,debug);
+    pixel += 0.04 * march(p2,dp2,pixel_area,n,occlusion,depth,iterations,steps,debug);
 
-    pixel += 0.12 * march(p3,dp3,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += 0.12 * march(p4,dp4,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.12 * march(p3,dp3,pixel_area,n,occlusion,depth,iterations,steps,debug);
+    pixel += 0.12 * march(p4,dp4,pixel_area,n,occlusion,depth,iterations,steps,debug);
 
-    pixel += 0.04 * march(p5,dp5,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += 0.12 * march(p6,dp6,pixel_area,n,occlusion,depth,iterations,steps);
-    pixel += 0.04 * march(p7,dp7,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.04 * march(p5,dp5,pixel_area,n,occlusion,depth,iterations,steps,debug);
+    pixel += 0.12 * march(p6,dp6,pixel_area,n,occlusion,depth,iterations,steps,debug);
+    pixel += 0.04 * march(p7,dp7,pixel_area,n,occlusion,depth,iterations,steps,debug);
 
-    pixel += 0.36 * march(p,dp,pixel_area,n,occlusion,depth,iterations,steps);
+    pixel += 0.36 * march(p,dp,pixel_area,n,occlusion,depth,iterations,steps,debug);
     #else
-    vec3 pixel = march(p,dp,pixel_area,n,occlusion,depth,iterations,steps);
+    vec3 pixel = march(p,dp,pixel_area,n,occlusion,depth,iterations,steps,debug);
     #endif
 
     // prepare output
@@ -340,11 +347,12 @@ void main() {
     switch(state_mode) {
         case MODE_OUTPUT: c = pow(pixel,vec3(1.0 / 2.2)); break;
         case MODE_DEPTH: c = vec3(1.0 - depth); break;
-        case MODE_NORMAL: c = vec3(0.5) + 0.5 * n; break;
+        case MODE_NORMAL: c = vec3(0.5) + 0.5 * vec3(n); break;
         case MODE_DEPTH_RB: c = rainbow(1.0 - depth); break;
         case MODE_ITERATIONS_RB: c = rainbow(clamp(0.05 * float(iterations),0.0,1.0)); break;
         case MODE_STEPS_RB: c = rainbow(clamp(0.05 * float(steps),0.0,1.0)); break;
         case MODE_OCCLUSION_RB: c = rainbow(1.0 - occlusion); break;
+        case MODE_DEBUG: c = debug ? vec3(1.0) : vec3(0.0); break;
     }
 
     // and draw

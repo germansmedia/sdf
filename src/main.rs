@@ -60,6 +60,7 @@ enum VisualizationMode {
     IterationsRB,
     StepsRB,
     Occlusion,
+    Debug,
 }
 
 #[repr(C)]
@@ -122,7 +123,7 @@ fn main() -> Result<(),String> {
     dump_mb3d(&mb3d);
 
     let shader_path = "shaders/engine.spirv";
-    let size = Vec2 { x: 1024i32,y: 1024i32, };
+    let size = Vec2 { x: 512i32,y: 512i32, };
 
     let system = System::open()?;
     let frame = system.create_frame(Rect { o: Vec2 { x: 10i32,y: 10i32, },s: size, },"SDF Fractal Explorer",)?;
@@ -147,7 +148,7 @@ fn main() -> Result<(),String> {
         scale: 1.0,
         mode: VisualizationMode::Output,
         max_steps: 200,
-        max_iterations: 60,
+        max_iterations: 120,
         tbd0: 0,
         horizon: 100.0,
         escape: 40.0,
@@ -260,6 +261,10 @@ fn main() -> Result<(),String> {
                                 KEY_F7 => {
                                     state.mode = VisualizationMode::Occlusion;
                                     println!("visualization mode: occlusion");
+                                },
+                                KEY_F8 => {
+                                    state.mode = VisualizationMode::Debug;
+                                    println!("visualization mode: debug");
                                 },
 
                                 KEY_OBRACK => {
