@@ -110,18 +110,28 @@ FLOAT query_distance(VEC3 p,out uint i) {
     rotate4d(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
+    //kochcube(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
     //polyfoldsym(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
-    /*
     amazingbox2(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
-    */
-    amazingbox2(v,dr,p);
+    rotate4d(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
     amazingbox2(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    i++;
+    rotate4d(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    i++;
+    amazingbox2(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    i++;
+    rotate4d(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
     amazingbox2(v,dr,p);

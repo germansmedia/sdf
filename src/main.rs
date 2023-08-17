@@ -200,18 +200,17 @@ fn main() -> Result<(),String> {
 
     let mut renderings = Vec::<Rendering>::new();
 
+    let mut rebuild = false;
     let mut close_clicked = false;
     while !close_clicked {
-
-        let mut rebuild: Option<Vec2<usize>> = None;
 
         system.flush().into_iter().for_each(|(_,event)| {
             match event {
                 Event::Close => {
                     close_clicked = true;
                 },
-                Event::Configure(r) => {
-                    rebuild = Some(Vec2 { x: r.s.x as usize,y: r.s.y as usize, });
+                Event::Configure(_) => {
+                    rebuild = true;
                 },
                 Event::Key(event) => {
                     match event {
@@ -379,14 +378,19 @@ fn main() -> Result<(),String> {
         });
 
         // only process last configure event
-        if let Some(s) = rebuild {
+        if rebuild {
+            gpu.wait_idle();
+            renderings.clear();
+            let images = surface.reconfigure()?;
+            let s = surface.get_size();
             state.size.x = s.x as f32;
             state.size.y = s.y as f32;
-            let images = surface.reconfigure(s)?;
-            renderings.clear();
             for image in images {
-                let image_view = image.create_view()?;
-                let descriptor_set = descriptor_set_layout.create_descriptor_set(&[&Descriptor::UniformBuffer(&uniform_buffer),&Descriptor::StorageImage(&image_view)])?;
+                let image_view = gpu.create_image_view(&image)?;
+                let descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
+                    &Descriptor::UniformBuffer(&uniform_buffer),
+                    &Descriptor::StorageImage(&image_view)
+                ])?;
                 let command_buffer = gpu.create_command_buffer()?;
                 command_buffer.begin()?;
                 command_buffer.bind_compute_pipeline(&compute_pipeline);
@@ -399,6 +403,7 @@ fn main() -> Result<(),String> {
                     command_buffer,
                 });
             }
+            rebuild = false;
         }
 
         // process movement
@@ -441,7 +446,9 @@ fn main() -> Result<(),String> {
             fence.wait()?;
 
             // present frame
-            if let Err(_) = surface.present(index,Some(&semaphore)) { }
+            if let Err(_) = surface.present(index,Some(&semaphore)) {
+                rebuild = true;
+            }
         }
     }
 
