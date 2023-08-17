@@ -1,24 +1,39 @@
 #define AMAZING_SCALE 1.05
-#define AMAZING_MINR 0.2
-#define AMAZING_FOLD 1.525
-#define AMAZING_IX 0.6342625
-#define AMAZING_IY 0
-#define AMAZING_IZ 0
-#define AMAZING_RADIUS 1
+#define AMAZING_MINR2 0.04
+#define AMAZING_FOLD VEC3(1.525,1.525,1.525)
+#define AMAZING_I VEC3(0.6342625,0.6342625,0.6342625)
+#define AMAZING_RADIUS 1.0
+
+/*
+#define AMAZING_SCALE 2.0
+#define AMAZING_MINR2 0.25
+#define AMAZING_FOLD VEC3(1.0,1.0,1.0)
+#define AMAZING_I VEC3(0.5,0.0,0.0)
+#define AMAZING_RADIUS 1.0
+*/
 
 void amazingbox2(inout VEC3 v,inout FLOAT dr,VEC3 c) {
-    VEC3 f = VEC3(AMAZING_FOLD,AMAZING_FOLD,AMAZING_FOLD);
-    VEC3 ab = abs(v - f) + v - abs(v + f);
-    VEC3 i = VEC3(AMAZING_IX,AMAZING_IY,AMAZING_IZ);
-    VEC3 s = ab + i;
-    FLOAT t = dot(s,s);
-    FLOAT q = AMAZING_SCALE;
-    if (t < AMAZING_MINR * AMAZING_MINR) {
-        q = AMAZING_SCALE / (AMAZING_MINR * AMAZING_MINR);
+
+    // TODO: rotation
+
+    v = abs(v -AMAZING_FOLD) + v - abs(v + AMAZING_FOLD) + AMAZING_I;
+
+    FLOAT r2 = dot(v,v);
+    FLOAT q = 0.0;
+    if (r2 < AMAZING_MINR2) {
+        FLOAT t = 1.0 / AMAZING_MINR2;
+        v *= t;
+        dr *= t;
     }
-    else if (t < 1.0) {
-        q = AMAZING_SCALE / t;
+    else if (r2 < 1.0) {
+        FLOAT t = 1.0 / r2;
+        v *= t;
+        dr *= t;
     }
-    v = q * s - AMAZING_SCALE * i;
-    dr = q * dr;
+
+    v = AMAZING_SCALE * v - AMAZING_SCALE * AMAZING_I;
+
+    v += c;
+
+    dr = AMAZING_SCALE * dr + 1.0;
 }

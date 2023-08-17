@@ -10,7 +10,6 @@ layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 #define MODE_STEPS_RB          5
 #define MODE_OCCLUSION_RB      6
 
-
 layout (std140,binding = 0) readonly uniform State {
     mat4 state_view;              // view matrix
 
@@ -66,145 +65,14 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #endif
 
 #include "base.glsl"
-
-#if 0
-// Mandelbox
-FLOAT query_distance(VEC3 p,out uint i) {
-    VEC3 v = p;
-    FLOAT dr = 1.0;
-    for (i = 0; i < state_max_iterations; i++) {
-    	v = clamp(v, -1.0, 1.0) * 2.0 - v;
-        float r2 = dot(v,v);
-        if (r2 < 0.5) {
-            v *= 2.0;
-            dr *= 2.0;
-        }
-        else if (r2 < 1.0) {
-            float t = 1.0 / r2;
-            v *= t;
-            dr *= t;
-        }
-        v = 2.0 * v + p;
-        dr = 2.0 * dr + 1.0;
-    }
-    FLOAT r = length(v);
-    return r / abs(dr);
-}
-#endif
-
-#if 0
-// Menger Sponge
-FLOAT query_distance(VEC3 p,out uint i) {
-    VEC3 q = abs(p) - VEC3(1.0);
-    FLOAT d = length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
-    FLOAT s = 1.0;
-    for(i = 0; i < state_max_iterations; i++) {
-        VEC3 a = mod(p * s,2.0) - 1.0;
-        s *= 3.0;
-        VEC3 r = abs(1.0 - 3.0 * abs(a));
-        FLOAT da = max(r.x,r.y);
-        FLOAT db = max(r.y,r.z);
-        FLOAT dc = max(r.z,r.x);
-        float c = (min(da,min(db,dc)) - 1.0) / s;
-        d = max(d,c);
-    }
-    return d;
-}
-#endif
-
-#if 0
-// Koch Cube
-
-//#define KOCH_POST_SCALE 0.148106
-#define KOCH_POST_SCALE 2.0
-//#define KOCH_STRETCH 0.089698
-#define KOCH_STRETCH 1.0
-//#define KOCH_FOLD 0.049021
-#define KOCH_FOLD 1.0
-//#define KOCH_ADD VEC3(0.0396334,-0.081354,-0.003129)
-#define KOCH_ADD VEC3(0.0,0.0,0.0)
-#define KOCH_ROTATION MAT3(1.0,0.0,0.0, 0.0,1.0,0.0, 0.0,0.0,1.0)
-
-FLOAT query_distance(VEC3 p,out uint i) {
-    VEC3 v = p;
-    FLOAT dr = 1.0;
-    for (i = 0; i < state_max_iterations; i++) {
-        v = 3 * abs(v);
-        if (v.y <= v.x) {
-            v = v.yxz;
-        }
-        if (v.z <= v.x) {
-            v = v.zyx;
-        }
-        if (v.z <= v.y) {
-            v = v.xzy;
-        }
-        v = KOCH_ROTATION * (v + KOCH_ADD);
-        v.z = KOCH_FOLD - abs(KOCH_FOLD - v.z);
-        FLOAT ta = KOCH_STRETCH - 3;
-        FLOAT tb = KOCH_STRETCH + 3;
-        FLOAT td = v.x - ta;
-        FLOAT tc = v.x - tb;
-        if (v.y <= td) {
-            v.x = td;
-            v.y -= ta;
-        }
-        else if (v.y > tc) {
-            v.x = tc;
-        }
-        else {
-            v.x = v.y;
-            v.y = tc;
-        }
-        v = KOCH_POST_SCALE * vec3(v.x / KOCH_STRETCH,v.y / KOCH_STRETCH,v.z) + p;
-        dr = 3 * KOCH_POST_SCALE * dr / KOCH_STRETCH;
-    }
-    FLOAT r = length(v);
-    return r / abs(dr);
-}
-#endif
-
-#if 0
-// SierpHilbert
-#define SIERP_SCALE 3
-#define SIERP_EDGE1 2
-#define SIERP_EDGE2 1
-
-FLOAT query_distance(VEC3 p,out uint i) {
-    VEC3 v = p;
-    FLOAT dr = 1.0;
-    for (i = 0; i < state_max_iterations; i++) {
-        // v = rotation1 * v;
-        v.x = -v.x;
-        if (v.x >= v.y) {
-            v = v.yxz;
-        }
-        if (v.x >= v.z) {
-            v = v.zyx;
-        }
-        v.x = -v.x;
-        v = v.yxz;
-        v.x = -v.x;
-        if (v.x >= v.z) {
-            v = v.zyx;
-        }
-        v.x = -v.x;
-        v = v.yxz;
-        if (0 < SIERP_EDGE1) {
-            v.y = SIERP_EDGE1 - abs(SIERP_EDGE1 - v.y);
-        }
-        if (0 < SIERP_EDGE2) {
-            v.x = SIERP_EDGE2 - abs(SIERP_EDGE2 - v.x);
-        }
-        dr *= SIERP_SCALE;
-        //v = rotation2 * v;
-        v -= (SIERP_SCALE - 1); // * SIERP_CSCALE
-        v += p;
-    }
-    FLOAT r = length(v);
-    return r / abs(dr);
-}
-#endif
+#include "menger3.glsl"
+#include "mandelbox.glsl"
+#include "kochcube.glsl"
+#include "sierphilbert.glsl"
+#include "reciprocalz3b.glsl"
+#include "rotate4d.glsl"
+#include "amazingbox2.glsl"
+#include "polyfoldsym.glsl"
 
 #if 0
 // MandelBulb
@@ -224,36 +92,51 @@ FLOAT query_distance(VEC3 p,out uint i) {
         v = r8 * VEC3(sinTheta * cos(phi),sinTheta * sin(phi),cos(theta)) + p;
         r = length(v);
     }
-    return 0.5 * log(r) * r / dr;
+    return 0.5 * log(r) * r / dr;  // this is different from 'regular' ones
 }
 #endif
 
+// Julius:
 #if 1
-// Menger3
-#define MENGER3_SCALE 3.0
-#define MENGER3_CSCALE VEC3(0.9,1.2,1.8)
-#define MENGER3_ROTATION1 MAT3(0.9027011,-0.3816559,0.1986693,0.4057410,0.9087359,-0.0978434,-0.1431954,0.1689316,0.9751703)
-#define MENGER3_ROTATION2 MAT3(0.9987503,0.0000000,0.0499792,0.0004998,0.9999500,-0.0099873,-0.0499767,0.0099998,0.9987003)
-
 FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 v = p;
     FLOAT dr = 1.0;
     FLOAT r = length(v);
-    for(i = 0; (i < state_max_iterations) && (r < state_escape); i++) {
-        v = abs(v);
-        //v = MENGER3_ROTATION1 * v;
-        //v = MENGER3_ROTATION2 * v;
-        if (v.x < v.y) { v = v.yxz; }
-        if (v.x < v.z) { v = v.zyx; }
-        if (v.y < v.z) { v = v.xzy; }
-        v = MENGER3_ROTATION2 * v;
-        //v = MENGER3_ROTATION1 * v;
-        dr = dr * MENGER3_SCALE;
-        v *= MENGER3_SCALE;
-        VEC3 cs = MENGER3_CSCALE * (MENGER3_SCALE - 1);
-        v.x -= cs.x;
-        v.y -= cs.y;
-        if (v.z > 0.5 * cs.z) { v.z -= cs.z; }
+    i = 0;
+    reciprocalz3b(v,dr,p);
+    r = length(v); if (r >= state_escape) return r / abs(dr);
+    i++;
+    rotate4d(v,dr,p);
+    r = length(v); if (r >= state_escape) return r / abs(dr);
+    i++;
+    polyfoldsym(v,dr,p);
+    r = length(v); if (r >= state_escape) return r / abs(dr);
+    i++;
+    amazingbox2(v,dr,p);
+    r = length(v); if (r >= state_escape) return r / abs(dr);
+    i++;
+    amazingbox2(v,dr,p);
+    r = length(v); if (r >= state_escape) return r / abs(dr);
+    i++;
+    amazingbox2(v,dr,p);
+    r = length(v); if (r >= state_escape) return r / abs(dr);
+    i++;
+    amazingbox2(v,dr,p);
+    r = length(v); if (r >= state_escape) return r / abs(dr);
+    i++;
+    for (; (i < state_max_iterations) && (r < state_escape); i++) {
+        kochcube(v,dr,p);
+        r = length(v);
+    }
+    return r / abs(dr);
+}
+#else
+FLOAT query_distance(VEC3 p,out uint i) {
+    VEC3 v = p;
+    FLOAT dr = 1.0;
+    FLOAT r = length(v);
+    for (i = 0; (i < state_max_iterations) && (r < state_escape); i++) {
+        kochcube(v,dr,p);
         r = length(v);
     }
     return r / abs(dr);
@@ -290,7 +173,7 @@ vec3 rainbow(float f) {
     }
 }
 
-float shadow_attenuation(vec3 p,vec3 dp,float r_max,float de_stop_mul) {
+float shadow_attenuation(vec3 p,vec3 dp,float de_stop_mul,float r_max) {
     float att = 0.0;
     float r = 0.0;
     uint i = 0;
@@ -315,7 +198,9 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
     for(steps = 0; (steps < state_max_steps) && (r < state_scale * state_horizon); steps++) {
         FLOAT de = query_distance(p + r * dp,iterations);
         closest = min(closest,de);
-        if (de < state_de_stop * pixel_area * r) {
+        //if (de < state_de_stop * pixel_area) {
+        if (de < state_de_stop * pixel_area) {
+        //if (de < 0.001 * state_de_stop) {
             closest = 0.0;
             hit = true;
             break;
@@ -346,7 +231,9 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
         vec3 dkey_light = state_key_light_pos.xyz - p;
         float r_max = length(dkey_light);
         dkey_light = normalize(dkey_light);
-        float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,pixel_area * r);
+        //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,scaled_pixel_area);
+        float key_shadow_att = shadow_attenuation(p,dkey_light,pixel_area,r_max);
+        //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,0.001);
 
         // diffuse key light
         float key_light = clamp(dot(n,dkey_light),0.0,1.0);
@@ -369,9 +256,9 @@ vec3 march(VEC3 p,VEC3 dp,float pixel_area,out VEC3 n,out float occlusion,out fl
 
         // apply light and fog to this pixel
         float fog = clamp(state_background_color.a * depth,0.0,1.0);
-        //pixel = mix(state_colors[iterations & 15].rgb * diff,pixel,fog);
+        pixel = mix(state_colors[iterations & 15].rgb * diff,pixel,fog);
         //pixel = state_colors[iterations & 15].rgb * diff;
-        pixel = mix(vec3(0.3,0.2,0.2) * diff,pixel,fog);
+        //pixel = mix(vec3(0.3,0.3,0.3) * diff,pixel,fog);
     }
 
     return pixel;
@@ -386,8 +273,6 @@ void main() {
     float y = -1.0 + 2.0 * (float(gl_GlobalInvocationID.y) + 0.5) / state_size.y;
     vec3 origin = (state_view * vec4(0.0,0.0,0.0,1.0)).xyz;
     vec3 screen = (state_view * vec4(f * aspect * x,f * y,1.0,1.0)).xyz;
-    vec3 screen_dx = (state_view * vec4(f * aspect,0.0,1.0,1.0)).xyz;
-    vec3 screen_dy = (state_view * vec4(0.0,f,1.0,1.0)).xyz;
 
     // calculate the area  of a single pixel
     float fpp = 2.0 * f / state_size.y;
@@ -396,13 +281,24 @@ void main() {
     // convert to f64 (if enabled)
     VEC3 p = VEC3(origin);
     VEC3 dp = VEC3(normalize(screen - origin));
+
+    // get ready...
+    VEC3 n = VEC3(0.0,0.0,0.0);
+    float occlusion = 1.0;
+    float depth = 1.0;
+    uint iterations = 0;
+    uint steps = 0;
+
+    // depth-of-field
+    #if 0
+    vec3 screen_dx = (state_view * vec4(f * aspect,0.0,1.0,1.0)).xyz;
+    vec3 screen_dy = (state_view * vec4(0.0,f,1.0,1.0)).xyz;
+
     VEC3 dpx = state_scale * state_aperture * VEC3(normalize(screen_dx));
     VEC3 dpy = state_scale * state_aperture * VEC3(normalize(screen_dy));
 
-    // the point in space we're focusing on
     VEC3 pf = p + state_scale * state_focus * dp;
 
-    // prepare 8 extra rays
     VEC3 p0 = p - dpx - dpy;
     VEC3 dp0 = normalize(pf - p0);
     VEC3 p1 = p - dpy;
@@ -422,14 +318,6 @@ void main() {
     VEC3 p7 = p + dpx + dpy;
     VEC3 dp7 = normalize(pf - p7);
 
-    // 
-    VEC3 n = VEC3(0.0,0.0,0.0);
-    float occlusion = 1.0;
-    float depth = 1.0;
-    uint iterations = 0;
-    uint steps = 0;
-
-    // accumulate
     vec3 pixel = vec3(0.0,0.0,0.0);
     pixel += 0.04 * march(p0,dp0,pixel_area,n,occlusion,depth,iterations,steps);
     pixel += 0.12 * march(p1,dp1,pixel_area,n,occlusion,depth,iterations,steps);
@@ -443,6 +331,9 @@ void main() {
     pixel += 0.04 * march(p7,dp7,pixel_area,n,occlusion,depth,iterations,steps);
 
     pixel += 0.36 * march(p,dp,pixel_area,n,occlusion,depth,iterations,steps);
+    #else
+    vec3 pixel = march(p,dp,pixel_area,n,occlusion,depth,iterations,steps);
+    #endif
 
     // prepare output
     vec3 c = vec3(0.0,0.0,0.0);

@@ -1,58 +1,18 @@
-use std::{
-    rc::Rc,
-    result::Result,
-    fs::{
-        File,
-        read_to_string,
+use {
+    e::*,
+    std::{
+        rc::Rc,
+        result::Result,
+        fs::{
+            File,
+            read_to_string,
+        },
+        io::Read,
     },
-    io::Read,
 };
-
-mod ffi;
-
-mod base;
-use base::*;
-
-mod system;
-use system::*;
-
-mod gpu;
-use gpu::*;
 
 mod mb3d;
 use mb3d::*;
-
-fn rebuild_command_buffers(
-    surface: &Surface,
-    command_buffers: &mut Vec<CommandBuffer>,
-    compute_pipeline: &Rc<ComputePipeline>,
-    pipeline_layout: &Rc<PipelineLayout>,
-    uniform_buffer: &Rc<UniformBuffer>,
-    size: Vec2<i32>,
-) -> Result<(),String> {
-
-    // create new descriptor sets
-    let mut descriptor_sets: Vec<Rc<DescriptorSet>> = Vec::new();
-    for i in 0..command_buffers.len() {
-        let descriptor_set = Rc::new(pipeline_layout.create_descriptor_set()?);
-        descriptor_set.update(0,Descriptor::UniformBuffer(uniform_buffer.vk_buffer as *mut u8,uniform_buffer.size as u64));
-        descriptor_set.update(1,Descriptor::StorageImage(surface.vk_image_views[i] as *mut u8));
-        descriptor_sets.push(descriptor_set);
-    }
-
-    // rebuild the command buffers
-    for i in 0..command_buffers.len() {
-        let cb = &mut command_buffers[i];
-        cb.reset()?;
-        cb.begin()?;
-        cb.bind_compute_pipeline(&compute_pipeline);
-        cb.bind_descriptor_set(&pipeline_layout,&descriptor_sets[i]);
-        cb.dispatch(size.x as usize,size.y as usize,1);
-        cb.end()?;
-    }
-
-    Ok(())
-}
 
 const KEY_ARROW_UP: u32 = 111;
 const KEY_ARROW_DOWN: u32 = 116;
@@ -143,11 +103,17 @@ struct State {
     glow_color: Vec4<f32>,        // glow color (a = sharpness)
 }
 
+#[allow(dead_code)]
+struct Rendering {
+    image_view: ImageView,
+    descriptor_set: DescriptorSet,
+    command_buffer: CommandBuffer,
+}
+
 fn main() -> Result<(),String> {
 
+    // MB3D decoding test, TODO: move to other project
     let mb3d_path = "states/julius/recombination.txt";
-    let shader_path = "shaders/engine.spirv";
-
     let encoded = match read_to_string(mb3d_path) {
         Ok(data) => data,
         Err(error) => { return Err(error.to_string()) },
@@ -155,43 +121,37 @@ fn main() -> Result<(),String> {
     let mb3d = decode_mb3d(&encoded)?;
     dump_mb3d(&mb3d);
 
-    let r = Rect { o: Vec2{ x: 0i32,y: 0i32, },s: Vec2 { x: 1024i32,y: 438i32, }, };
+    let shader_path = "shaders/engine.spirv";
+    let size = Vec2 { x: 1024i32,y: 1024i32, };
 
-    let system = Rc::new(System::open()?);
-    let frame = Rc::new(system.create_frame(Rect { o: Vec2 { x: 10i32,y: 10i32, },s: r.s, },"Performance SDF",)?);
-    let gpu = system.create_gpu()?;
-
-    let mut surface = gpu.create_surface(Rc::clone(&frame),r)?;
-    let count = surface.get_swapchain_count();
-
-    let mut command_buffers: Vec<CommandBuffer> = Vec::new();
-    for _ in 0..count {
-        command_buffers.push(gpu.create_command_buffer()?);
-    }
-
-    let pipeline_layout = Rc::new(gpu.create_pipeline_layout(&[DescriptorBinding::UniformBuffer,DescriptorBinding::StorageImage])?);
+    let system = System::open()?;
+    let frame = system.create_frame(Rect { o: Vec2 { x: 10i32,y: 10i32, },s: size, },"SDF Fractal Explorer",)?;
+    let gpu = system.open_gpu()?;
+    let mut surface = gpu.create_surface(&frame)?;
 
     let mut f = File::open(shader_path).expect("unable to open compute shader");
     let mut code = Vec::<u8>::new();
     f.read_to_end(&mut code).expect("unable to read compute shader");
     let compute_shader = Rc::new(gpu.create_compute_shader(&code)?);
 
-    let compute_pipeline = Rc::new(gpu.create_compute_pipeline(Rc::clone(&pipeline_layout),Rc::clone(&compute_shader))?);
+    let descriptor_set_layout = gpu.create_descriptor_set_layout(&[DescriptorBinding::UniformBuffer,DescriptorBinding::StorageImage])?;
+    let pipeline_layout = Rc::new(gpu.create_pipeline_layout(&[&descriptor_set_layout])?);
+    let compute_pipeline = Rc::new(gpu.create_compute_pipeline(&pipeline_layout,&compute_shader)?);
 
     let mut pos = Vec3::<f32> { x: 0.0,y: 0.0,z: -30.0, };
     let mut dir = Quaternion::<f32>::ONE;
     let mut state = State {
         view: Mat4x4::<f32>::from_mv(Mat3x3::from(dir),pos),
-        size: Vec2 { x: r.s.x as f32,y: r.s.y as f32, },
+        size: Vec2 { x: size.x as f32,y: size.y as f32, },
         fovy: 72.0.to_radians(),
         scale: 1.0,
         mode: VisualizationMode::Output,
-        max_steps: 1000,
-        max_iterations: 15,
+        max_steps: 200,
+        max_iterations: 60,
         tbd0: 0,
         horizon: 100.0,
         escape: 40.0,
-        de_stop: 200.0,
+        de_stop: 500.0,
         focus: 2.0,
         aperture: 0.01,
         tbd1: 0.0,
@@ -218,20 +178,16 @@ fn main() -> Result<(),String> {
         key_light_pos: Vec4 { x: -20.0,y: -30.0,z: -10.0, w: 1.0, },  // somewhere above the origin
         key_light_color: Vec4 { x: 1.64,y: 1.47,z: 0.99, w: 1.0, },  // very bright yellow
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
-        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },   // sky light color (a = fog strength)
+        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 0.3, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
-        background_color: Vec4 { x: 0.0,y: 0.01,z: 0.10,w: 1.0, },  // background color
-        glow_color: Vec4 { x: 0.4,y: 0.4,z: 0.4,w: 0.1, },        // glow color (a = power)
+        background_color: Vec4 { x: 0.0,y: 0.0,z: 0.01,w: 1.0, },  // background color
+        glow_color: Vec4 { x: 0.2,y: 0.2,z: 0.2,w: 0.1, },        // glow color (a = power)
     };
 
-    let uniform_buffer = Rc::new(gpu.create_uniform_buffer(&state)?);
+    let uniform_buffer = gpu.create_uniform_buffer(&state)?;
 
-    rebuild_command_buffers(&surface,&mut command_buffers,&compute_pipeline,&pipeline_layout,&uniform_buffer,r.s)?;
-    
-    let acquired_semaphore = Rc::new(gpu.create_semaphore()?);
-    let acquired_fence = Rc::new(gpu.create_fence()?);
-    let submitted_fence = Rc::new(gpu.create_fence()?);
-    let rendered_semaphore = Rc::new(gpu.create_semaphore()?);
+    let fence = gpu.create_fence()?;
+    let semaphore = gpu.create_semaphore()?;
 
     let mut delta: Vec2<f32> = Vec2::ZERO;
     let mut prev_position: Vec2<f32> = Vec2::ZERO;
@@ -241,10 +197,12 @@ fn main() -> Result<(),String> {
     let mut d_de_stop = 1.0;
     let mut d_escape = 0.0;
 
+    let mut renderings = Vec::<Rendering>::new();
+
     let mut close_clicked = false;
     while !close_clicked {
 
-        let mut configure_event: Option<Rect<i32>> = None;
+        let mut rebuild: Option<Vec2<usize>> = None;
 
         system.flush().into_iter().for_each(|(_,event)| {
             match event {
@@ -252,7 +210,7 @@ fn main() -> Result<(),String> {
                     close_clicked = true;
                 },
                 Event::Configure(r) => {
-                    configure_event = Some(r.clone());
+                    rebuild = Some(Vec2 { x: r.s.x as usize,y: r.s.y as usize, });
                 },
                 Event::Key(event) => {
                     match event {
@@ -416,11 +374,26 @@ fn main() -> Result<(),String> {
         });
 
         // only process last configure event
-        if let Some(r) = configure_event {
-            state.size.x = r.s.x as f32;
-            state.size.y = r.s.y as f32;
-            surface.set_rect(&r)?;
-            rebuild_command_buffers(&surface,&mut command_buffers,&compute_pipeline,&pipeline_layout,&uniform_buffer,r.s)?;
+        if let Some(s) = rebuild {
+            state.size.x = s.x as f32;
+            state.size.y = s.y as f32;
+            let images = surface.reconfigure(s)?;
+            renderings.clear();
+            for image in images {
+                let image_view = image.create_view()?;
+                let descriptor_set = descriptor_set_layout.create_descriptor_set(&[&Descriptor::UniformBuffer(&uniform_buffer),&Descriptor::StorageImage(&image_view)])?;
+                let command_buffer = gpu.create_command_buffer()?;
+                command_buffer.begin()?;
+                command_buffer.bind_compute_pipeline(&compute_pipeline);
+                command_buffer.bind_descriptor_set(&pipeline_layout,0,&descriptor_set)?;
+                command_buffer.dispatch(s.x,s.y,1);
+                command_buffer.end()?;
+                renderings.push(Rendering {
+                    image_view,
+                    descriptor_set,
+                    command_buffer,
+                });
+            }
         }
 
         // process movement
@@ -432,7 +405,7 @@ fn main() -> Result<(),String> {
 
         // process parameter updates
         state.scale = (state.scale * d_scale).clamp(0.00001,10.0);
-        state.de_stop = (state.de_stop * d_de_stop).clamp(100.0,10000.0);
+        state.de_stop = (state.de_stop * d_de_stop).clamp(0.1,10000.0);
         state.escape = (state.escape + d_escape).clamp(1.0,100.0);
 
         // print which parameters got updated
@@ -449,18 +422,22 @@ fn main() -> Result<(),String> {
         // and update everything to the shaders
         uniform_buffer.update(&state);
 
-        // acquire frame
-        acquired_fence.reset()?;
-        let i = surface.acquire(Some(&acquired_semaphore),Some(&acquired_fence))?;
-        acquired_fence.wait()?;
+        // only draw if a command buffer exists
+        if renderings.len() > 0 {
 
-        // render frame
-        submitted_fence.reset()?;
-        gpu.submit_command_buffer(&command_buffers[i],Some(&acquired_semaphore),Some(&rendered_semaphore),Some(&submitted_fence))?;
-        submitted_fence.wait()?;
+            // acquire frame
+            fence.reset()?;
+            let index = surface.acquire(&fence)?;
+            fence.wait()?;
 
-        // present frame
-        if let Err(_) = surface.present(i,Some(&rendered_semaphore)) { }
+            // render frame
+            fence.reset()?;
+            renderings[index].command_buffer.submit(None,Some(&semaphore),Some(&fence))?;
+            fence.wait()?;
+
+            // present frame
+            if let Err(_) = surface.present(index,Some(&semaphore)) { }
+        }
     }
 
     Ok(())
