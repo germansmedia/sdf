@@ -2,16 +2,26 @@
 
 layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 
-#define MODE_OUTPUT            0
-#define MODE_DEPTH             1
-#define MODE_NORMAL            2
-#define MODE_DEPTH_RB          3
-#define MODE_ITERATIONS_RB     4
-#define MODE_STEPS_RB          5
-#define MODE_OCCLUSION_RB      6
-#define MODE_DEBUG             7
+#define MODE_OUTPUT        0
+#define MODE_DEPTH         1
+#define MODE_NORMAL        2
+#define MODE_DEPTH_RB      3
+#define MODE_ITERATIONS_RB 4
+#define MODE_STEPS_RB      5
+#define MODE_OCCLUSION_RB  6
+#define MODE_DEBUG         7
 
-layout (std140,binding = 0) readonly uniform State {
+#define INTERLACING_FULL16X16 0
+#define INTERLACING_RIGHT8X16 1
+#define INTERLACING_BOTTOM8X8 2
+#define INTERLACING_RIGHT4X8  3
+#define INTERLACING_BOTTOM4X4 4
+#define INTERLACING_RIGHT2X4  5
+#define INTERLACING_BOTTOM2X2 6
+#define INTERLACING_RIGHT1X2  7
+#define INTERLACING_BOTTOM1X1 8
+
+layout (std140,binding = 0) readonly uniform Uniforms {
     mat4 state_view;              // view matrix
 
     vec2 state_size;              // size of the output, in pixels
@@ -26,9 +36,9 @@ layout (std140,binding = 0) readonly uniform State {
     float state_horizon;          // furthest distance to view
     float state_escape;           // fractal iteration escape value
     float state_de_stop;          // closest approach to the fractal
-    float state_focus;
+    float state_focus;            // distance to focus plane
 
-    float state_aperture;
+    float state_aperture;         // how far apart the rays start
     float tbd1;
     float tbd2;
     float tbd3;
@@ -50,7 +60,11 @@ layout (std140,binding = 0) readonly uniform State {
     vec4 state_glow_color;        // glow color (a = power)
 };
 
-layout (binding = 1) writeonly uniform image2D out_frame;
+layout (std140,binding = 1) readonly uniform Interlacing {
+    uint state_interlacing;
+};
+
+layout (binding = 2) writeonly uniform image2D out_frame;
 
 // use capital names where f64 would be applicable
 #if 1
@@ -104,12 +118,9 @@ FLOAT query_distance(VEC3 p,out uint i) {
     FLOAT dr = 1.0;
     FLOAT r = length(v);
     i = 0;
-    reciprocalz3b(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    rotate4d(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
+    //rotate4d(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
     //kochcube(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
@@ -119,13 +130,16 @@ FLOAT query_distance(VEC3 p,out uint i) {
     amazingbox2(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
-    rotate4d(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
     amazingbox2(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
+    reciprocalz3b(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    i++;
     rotate4d(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    i++;
+    kochcube(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
     amazingbox2(v,dr,p);
@@ -282,11 +296,32 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
 
 void main() {
 
-    // create screen at z=1
+    // get invocation coordinates
+    uint ix = gl_GlobalInvocationID.x;
+    uint iy = gl_GlobalInvocationID.y;
+
+    // convert to real pixel coordinates
+    uint px = 0;
+    uint py = 0;
+    switch (state_interlacing) {
+        case INTERLACING_FULL16X16: px = ix << 4; py = iy << 4; break;
+        case INTERLACING_RIGHT8X16: px = (ix << 4) + 8; py = iy << 4; break;
+        case INTERLACING_BOTTOM8X8: px = ix << 3; py = (iy << 4) + 8; break;
+        case INTERLACING_RIGHT4X8: px = (ix << 3) + 4; py = iy << 3; break;
+        case INTERLACING_BOTTOM4X4: px = ix << 2; py = (iy << 3) + 4; break;
+        case INTERLACING_RIGHT2X4: px = (ix << 2) + 2; py = iy << 2; break;
+        case INTERLACING_BOTTOM2X2: px = ix << 1; py = (iy << 2) + 2; break;
+        case INTERLACING_RIGHT1X2: px = (ix << 1) + 1; py = iy << 1; break;
+        case INTERLACING_BOTTOM1X1: py = (iy << 1) + 1; break;
+    }
+
+    // place screen at z=1
     float f = tan(0.5 * state_fovy);
     float aspect = state_size.x / state_size.y;
-    float x = -1.0 + 2.0 * (float(gl_GlobalInvocationID.x) + 0.5) / state_size.x;
-    float y = -1.0 + 2.0 * (float(gl_GlobalInvocationID.y) + 0.5) / state_size.y;
+    float x = -1.0 + 2.0 * (float(px) + 0.5) / state_size.x;
+    float y = -1.0 + 2.0 * (float(py) + 0.5) / state_size.y;
+
+    // transform setup by view matrix
     vec3 origin = (state_view * vec4(0.0,0.0,0.0,1.0)).xyz;
     vec3 screen = (state_view * vec4(f * aspect * x,f * y,1.0,1.0)).xyz;
 
@@ -307,7 +342,7 @@ void main() {
     bool debug = false;
 
     // depth-of-field
-    #if 0
+    #if 1
     vec3 screen_dx = (state_view * vec4(f * aspect,0.0,1.0,1.0)).xyz;
     vec3 screen_dy = (state_view * vec4(0.0,f,1.0,1.0)).xyz;
 
@@ -366,5 +401,71 @@ void main() {
     }
 
     // and draw
-    imageStore(out_frame,ivec2(gl_GlobalInvocationID.xy),vec4(c,1.0));
+    vec4 result = vec4(c,1.0);
+    switch (state_interlacing) {
+        case INTERLACING_FULL16X16:
+            for (uint i = 0; i < 16; i++) {
+                for (uint k = 0; k < 16; k++) {
+                    imageStore(out_frame,ivec2(px + k,py + i),result);
+                }
+            }
+            break;
+
+        case INTERLACING_RIGHT8X16:
+            for (uint i = 0; i < 16; i++) {
+                for (uint k = 0; k < 8; k++) {
+                    imageStore(out_frame,ivec2(px + k,py + i),result);
+                }
+            }
+            break;
+
+        case INTERLACING_BOTTOM8X8:
+            for (uint i = 0; i < 8; i++) {
+                for (uint k = 0; k < 8; k++) {
+                    imageStore(out_frame,ivec2(px + k,py + i),result);
+                }
+            }
+            break;
+
+        case INTERLACING_RIGHT4X8:
+            for (uint i = 0; i < 8; i++) {
+                for (uint k = 0; k < 4; k++) {
+                    imageStore(out_frame,ivec2(px + k,py + i),result);
+                }
+            }
+            break;
+
+        case INTERLACING_BOTTOM4X4:
+            for (uint i = 0; i < 4; i++) {
+                for (uint k = 0; k < 4; k++) {
+                    imageStore(out_frame,ivec2(px + k,py + i),result);
+                }
+            }
+            break;
+
+        case INTERLACING_RIGHT2X4:
+            for (uint i = 0; i < 4; i++) {
+                for (uint k = 0; k < 2; k++) {
+                    imageStore(out_frame,ivec2(px + k,py + i),result);
+                }
+            }
+            break;
+
+        case INTERLACING_BOTTOM2X2:
+            for (uint i = 0; i < 2; i++) {
+                for (uint k = 0; k < 2; k++) {
+                    imageStore(out_frame,ivec2(px + k,py + i),result);
+                }
+            }
+            break;
+
+        case INTERLACING_RIGHT1X2:
+            for (uint i = 0; i < 2; i++) {
+                imageStore(out_frame,ivec2(px,py + i),result);
+            }
+            break;
+
+        case INTERLACING_BOTTOM1X1:
+            imageStore(out_frame,ivec2(px,py),result);
+    }
 }

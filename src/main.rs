@@ -1,18 +1,16 @@
 use {
     e::*,
     std::{
-        rc::Rc,
         result::Result,
-        fs::{
-            File,
-            read_to_string,
-        },
+        fs::File,
         io::Read,
+        sync::{
+            mpsc,
+            Arc,
+        },
+        thread,
     },
 };
-
-mod mb3d;
-use mb3d::*;
 
 const KEY_ARROW_UP: u32 = 111;
 const KEY_ARROW_DOWN: u32 = 116;
@@ -51,6 +49,7 @@ const SCALE_FACTOR: f32 = 1.01;
 const DE_STOP_FACTOR: f32 = 1.01;
 const ESCAPE_FACTOR: f32 = 0.1;
 
+#[derive(Clone)]
 #[repr(u32)]
 enum VisualizationMode {
     Output,
@@ -63,91 +62,289 @@ enum VisualizationMode {
     Debug,
 }
 
+#[derive(Clone,Copy)]
+#[repr(u32)]
+enum Interlacing {
+    Full16x16,
+    Right8x16,
+    Bottom8x8,
+    Right4x8,
+    Bottom4x4,
+    Right2x4,
+    Bottom2x2,
+    Right1x2,
+    Bottom1x1,
+}
+
+// State shared between rust and compute shader
+#[derive(Clone)]
 #[repr(C)]
-struct State {
+struct Uniforms {
 
-    view: Mat4x4<f32>,            // view matrix
+    view: Mat4x4<f32>,             // view matrix
 
-    size: Vec2<f32>,              // size of the output, in pixels
-    fovy: f32,                    // vertical FoV
-    scale: f32,                   // generic scale of the operation
+    size: Vec2<f32>,               // size of the output, in pixels
+    fovy: f32,                     // vertical FoV
+    scale: f32,                    // generic scale of the operation
 
-    mode: VisualizationMode,      // visualization mode
-    max_steps: u32,               // maximum number of ray marching steps
-    max_iterations: u32,          // maximum number of iterations
+    mode: VisualizationMode,       // visualization mode
+    max_steps: u32,                // maximum number of ray marching steps
+    max_iterations: u32,           // maximum number of iterations
     tbd0: u32,
 
-    horizon: f32,                 // furthest distance to view
-    escape: f32,                  // fractal iteration escape value
-    de_stop: f32,                 // closest approach to the fractal
-    focus: f32,                   // focus distance
+    horizon: f32,                  // furthest distance to view
+    escape: f32,                   // fractal iteration escape value
+    de_stop: f32,                  // closest approach to the fractal
+    focus: f32,                    // focus distance
 
-    aperture: f32,                // aperture radius
+    aperture: f32,                 // aperture radius
     tbd1: f32,
     tbd2: f32,
     tbd3: f32,
 
-    colors: [Vec4<f32>; 16],      // primary color table
+    colors: [Vec4<f32>; 16],       // primary color table
 
-    key_light_pos: Vec4<f32>,     // key light position
+    key_light_pos: Vec4<f32>,      // key light position
 
-    key_light_color: Vec4<f32>,   // key light color
+    key_light_color: Vec4<f32>,    // key light color
 
-    shadow_power: Vec4<f32>,      // shadow power (a = sharpness)
+    shadow_power: Vec4<f32>,       // shadow power (a = sharpness)
 
-    sky_light_color: Vec4<f32>,   // sky light color (a = fog strength)
+    sky_light_color: Vec4<f32>,    // sky light color (a = fog strength)
 
-    gi_light_color: Vec4<f32>,    // ambient light color
+    gi_light_color: Vec4<f32>,     // ambient light color
 
-    background_color: Vec4<f32>,  // background color
+    background_color: Vec4<f32>,   // background color
 
-    glow_color: Vec4<f32>,        // glow color (a = sharpness)
+    glow_color: Vec4<f32>,         // glow color (a = sharpness)
 }
 
-#[allow(dead_code)]
-struct Rendering {
+#[repr(C)]
+#[derive(Clone,Copy)]
+struct Uniforms2 {
+    interlacing: Interlacing,
+    tbd0: u32,
+    tbd1: u32,
+    tbd2: u32,
+}
+
+enum RenderCommand {
+    NewUniforms(Uniforms),
+    NewImage(Arc<Image>,Vec2<usize>),
+    Exit,
+}
+
+enum RenderState {
+    Idle,
+    Rendering(Interlacing,Vec2<usize>),
+    Exiting,
+}
+
+struct Renderer<'a> {
+    gpu: &'a Gpu,
+    queue: Queue,
+    descriptor_set_layout: DescriptorSetLayout,
+    pipeline_layout: PipelineLayout,
+    compute_shader: ComputeShader,
+    compute_pipeline: ComputePipeline,
+    uniforms: Uniforms,
+    uniform_buffer: UniformBuffer,
+    uniforms2: Vec<Uniforms2>,
+    uniform_buffers2: Vec<UniformBuffer>,
+    fence: Fence,
+    image: Arc<Image>,
     image_view: ImageView,
-    descriptor_set: DescriptorSet,
+    descriptor_sets: Vec<DescriptorSet>,
     command_buffer: CommandBuffer,
+    size: Vec2<usize>,
+    state: RenderState,
+}
+
+impl<'a> Renderer<'a> {
+
+    fn new(gpu: &'a Gpu,image: Arc<Image>,size: Vec2<usize>,initial_uniforms: Uniforms) -> Result<Renderer,String> {
+
+        dprintln!("render_thread: getting queue");
+        let queue = gpu.get_queue(1)?;
+
+        dprintln!("render_thread: loading shader");
+        let mut f = File::open("shaders/engine.spirv").expect("unable to open compute shader");
+        let mut code = Vec::<u8>::new();
+        f.read_to_end(&mut code).expect("unable to read compute shader");
+        let compute_shader = gpu.create_compute_shader(&code)?;
+
+        dprintln!("render_thread: creating descriptor set layout");
+        let descriptor_set_layout = gpu.create_descriptor_set_layout(&[
+            DescriptorBinding::UniformBuffer,
+            DescriptorBinding::UniformBuffer,
+            DescriptorBinding::StorageImage,
+        ])?;
+
+        dprintln!("render_thread: creating pipeline layout");
+        let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout])?;
+
+        dprintln!("render_thread: creating compute pipeline");
+        let compute_pipeline = gpu.create_compute_pipeline(&pipeline_layout,&compute_shader)?;
+
+        dprintln!("render_thread: creating uniform buffer");
+        let uniform_buffer = gpu.create_uniform_buffer(&initial_uniforms)?;
+
+        dprintln!("render_thread: creating second uniform buffers");
+        let mut uniforms2 = Vec::<Uniforms2>::new();
+        uniforms2.push(Uniforms2 { interlacing: Interlacing::Full16x16, tbd0: 0, tbd1: 0, tbd2: 0, });
+        uniforms2.push(Uniforms2 { interlacing: Interlacing::Right8x16, tbd0: 0, tbd1: 0, tbd2: 0, });
+        uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom8x8, tbd0: 0, tbd1: 0, tbd2: 0, });
+        uniforms2.push(Uniforms2 { interlacing: Interlacing::Right4x8, tbd0: 0, tbd1: 0, tbd2: 0, });
+        uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom4x4, tbd0: 0, tbd1: 0, tbd2: 0, });
+
+        // why does this crash during creation of descriptor sets?
+        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Right2x4, tbd0: 0, tbd1: 0, tbd2: 0, });
+        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom2x2, tbd0: 0, tbd1: 0, tbd2: 0, });
+        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Right1x2, tbd0: 0, tbd1: 0, tbd2: 0, });
+        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom1x1, tbd0: 0, tbd1: 0, tbd2: 0, });
+
+        let mut uniform_buffers2 = Vec::<UniformBuffer>::new();
+        for uniform2 in uniforms2.iter() {
+            uniform_buffers2.push(gpu.create_uniform_buffer(uniform2)?);
+        }
+
+        dprintln!("render_thread: creating fence");
+        let fence = gpu.create_fence()?;
+
+        dprintln!("render_thread: create image view");
+        let image_view = gpu.create_image_view(&image)?;
+
+        dprintln!("render_thread: creating descriptor sets");
+        let mut descriptor_sets = Vec::<DescriptorSet>::new();
+        for uniform_buffer2 in uniform_buffers2.iter() {
+            descriptor_sets.push(gpu.create_descriptor_set(&descriptor_set_layout,&[
+                &Descriptor::UniformBuffer(&uniform_buffer),
+                &Descriptor::UniformBuffer(&uniform_buffer2),
+                &Descriptor::StorageImage(&image_view),
+            ])?);
+        }
+
+        dprintln!("render_thread: creating command buffer");
+        let command_buffer = queue.create_command_buffer()?;
+
+        Ok(Renderer {
+            gpu,
+            queue,
+            descriptor_set_layout,
+            pipeline_layout,
+            compute_shader,
+            compute_pipeline,
+            uniforms: initial_uniforms,
+            uniform_buffer,
+            uniforms2,
+            uniform_buffers2,
+            fence,
+            image,
+            image_view,
+            descriptor_sets,
+            command_buffer,
+            size,
+            state: RenderState::Idle,
+        })
+    }
+
+    fn process_command(&mut self,command: RenderCommand) -> Result<(),String> {
+
+        match command {
+
+            RenderCommand::NewUniforms(new_uniforms) => {
+                dprintln!("render_thread: new uniforms");
+                self.uniforms = new_uniforms;
+                self.uniform_buffer.update(&self.uniforms);
+                self.state = RenderState::Rendering(Interlacing::Full16x16,Vec2 { x: self.size.x >> 4,y: self.size.y >> 4, });
+            },
+
+            RenderCommand::NewImage(image,size) => {
+                dprintln!("render_thread: new image");
+                self.image = image;
+                self.size = size;
+                self.image_view = self.gpu.create_image_view(&self.image)?;
+                self.descriptor_sets = Vec::<DescriptorSet>::new();
+                for uniform_buffer2 in self.uniform_buffers2.iter() {
+                    self.descriptor_sets.push(self.gpu.create_descriptor_set(&self.descriptor_set_layout,&[
+                        &Descriptor::UniformBuffer(&self.uniform_buffer),
+                        &Descriptor::UniformBuffer(uniform_buffer2),
+                        &Descriptor::StorageImage(&self.image_view),
+                    ])?);
+                }
+                self.state = RenderState::Rendering(Interlacing::Full16x16,Vec2 { x: self.size.x >> 4,y: self.size.y >> 4, });
+            },
+
+            RenderCommand::Exit => {
+                self.state = RenderState::Exiting;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn render(&mut self) -> Result<(),String> {
+
+        if let RenderState::Rendering(interlacing,size) = self.state {
+
+            dprintln!("render thread: level {}, size {}",interlacing as usize,size);
+
+            self.command_buffer = self.queue.create_command_buffer()?;
+
+            self.command_buffer.begin()?;
+            self.command_buffer.bind_compute_pipeline(&self.compute_pipeline);
+            self.command_buffer.bind_descriptor_set(&self.pipeline_layout,0,&self.descriptor_sets[interlacing as usize])?;
+            self.command_buffer.dispatch(size.x,size.y,1);
+            self.command_buffer.end()?;
+    
+            self.fence.reset()?;
+            self.queue.submit(&self.command_buffer,None,None,Some(&self.fence))?;
+            self.fence.wait()?;
+    
+            self.state = match interlacing {
+                Interlacing::Full16x16 => RenderState::Rendering(Interlacing::Right8x16,Vec2 { x: self.size.x >> 4,y: self.size.y >> 4, }),
+                Interlacing::Right8x16 => RenderState::Rendering(Interlacing::Bottom8x8,Vec2 { x: self.size.x >> 3,y: self.size.y >> 4, }),
+                Interlacing::Bottom8x8 => RenderState::Rendering(Interlacing::Right4x8,Vec2 { x: self.size.x >> 3,y: self.size.y >> 3, }),
+                Interlacing::Right4x8 => RenderState::Rendering(Interlacing::Bottom4x4,Vec2 { x: self.size.x >> 2,y: self.size.y >> 3, }),
+                //Interlacing::Bottom4x4 => RenderState::Rendering(Interlacing::Right2x4,Vec2 { x: self.size.x >> 2,y: self.size.y >> 2, }),
+                //Interlacing::Right2x4 => RenderState::Rendering(Interlacing::Bottom2x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 2, }),
+                //Interlacing::Bottom2x2 => RenderState::Rendering(Interlacing::Right1x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 1, }),
+                //Interlacing::Right1x2 => RenderState::Rendering(Interlacing::Bottom1x1,Vec2 { x: self.size.x,y: self.size.y >> 1, }),
+                //Interlacing::Bottom1x1 => RenderState::Idle,
+                _ => RenderState::Idle,
+            };
+        }
+
+        Ok(())
+    }
 }
 
 fn main() -> Result<(),String> {
 
-    // MB3D decoding test, TODO: move to other project
-    let mb3d_path = "states/julius/recombination.txt";
-    let encoded = match read_to_string(mb3d_path) {
-        Ok(data) => data,
-        Err(error) => { return Err(error.to_string()) },
-    };
-    let mb3d = decode_mb3d(&encoded)?;
-    dump_mb3d(&mb3d);
-
-    let shader_path = "shaders/engine.spirv";
-    let size = Vec2 { x: 512i32,y: 512i32, };
+    let mut size = Vec2 { x: 512usize,y: 512usize, };
 
     let system = System::open()?;
-    let frame = system.create_frame(Rect { o: Vec2 { x: 10i32,y: 10i32, },s: size, },"SDF Fractal Explorer",)?;
-    let gpu = system.open_gpu()?;
+    let frame = system.create_frame(
+        Rect {
+            o: Vec2 { x: 10i32,y: 10i32, },
+            s: Vec2 { x: size.x as i32,y: size.y as i32, },
+        },
+        "Fractal Explorer",
+    )?;
+    let gpu = Arc::new(system.open_gpu(2)?);
+    let blit_queue = gpu.get_queue(0)?;
     let mut surface = gpu.create_surface(&frame)?;
-
-    let mut f = File::open(shader_path).expect("unable to open compute shader");
-    let mut code = Vec::<u8>::new();
-    f.read_to_end(&mut code).expect("unable to read compute shader");
-    let compute_shader = Rc::new(gpu.create_compute_shader(&code)?);
-
-    let descriptor_set_layout = gpu.create_descriptor_set_layout(&[DescriptorBinding::UniformBuffer,DescriptorBinding::StorageImage])?;
-    let pipeline_layout = Rc::new(gpu.create_pipeline_layout(&[&descriptor_set_layout])?);
-    let compute_pipeline = Rc::new(gpu.create_compute_pipeline(&pipeline_layout,&compute_shader)?);
+    let mut image = Arc::new(gpu.create_image(size)?);
 
     let mut pos = Vec3::<f32> { x: 0.0,y: 0.0,z: -30.0, };
     let mut dir = Quaternion::<f32>::ONE;
-    let mut state = State {
+    let mut uniforms = Uniforms {
         view: Mat4x4::<f32>::from_mv(Mat3x3::from(dir),pos),
         size: Vec2 { x: size.x as f32,y: size.y as f32, },
         fovy: 72.0.to_radians(),
         scale: 1.0,
         mode: VisualizationMode::Output,
-        max_steps: 200,
+        max_steps: 1000,
         max_iterations: 120,
         tbd0: 0,
         horizon: 100.0,
@@ -159,35 +356,75 @@ fn main() -> Result<(),String> {
         tbd2: 0.0,
         tbd3: 0.0,
         colors: [
-            Vec4 { x: 0.0,y: 0.0,z: 0.0, w: 1.0, },
-            Vec4 { x: 0.0,y: 0.0,z: 0.2, w: 1.0, },
-            Vec4 { x: 0.0,y: 0.2,z: 0.0, w: 1.0, },
-            Vec4 { x: 0.0,y: 0.2,z: 0.2, w: 1.0, },
-            Vec4 { x: 0.2,y: 0.0,z: 0.0, w: 1.0, },
-            Vec4 { x: 0.2,y: 0.0,z: 0.2, w: 1.0, },
-            Vec4 { x: 0.2,y: 0.2,z: 0.0, w: 1.0, },
-            Vec4 { x: 0.2,y: 0.2,z: 0.2, w: 1.0, },
-            Vec4 { x: 0.1,y: 0.1,z: 0.1, w: 1.0, },
-            Vec4 { x: 0.1,y: 0.1,z: 0.3, w: 1.0, },
-            Vec4 { x: 0.1,y: 0.3,z: 0.1, w: 1.0, },
-            Vec4 { x: 0.1,y: 0.3,z: 0.3, w: 1.0, },
-            Vec4 { x: 0.3,y: 0.1,z: 0.1, w: 1.0, },
-            Vec4 { x: 0.3,y: 0.1,z: 0.3, w: 1.0, },
-            Vec4 { x: 0.3,y: 0.3,z: 0.1, w: 1.0, },
             Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.2,z: 0.2, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.1,z: 0.1, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.0,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.1,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.2,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.3,y: 0.3,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.2,y: 0.3,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.1,y: 0.3,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.3,z: 0.0, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.3,z: 0.1, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.2,z: 0.2, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.1,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.0,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.0,z: 0.2, w: 1.0, },
         ],
         key_light_pos: Vec4 { x: -20.0,y: -30.0,z: -10.0, w: 1.0, },  // somewhere above the origin
         key_light_color: Vec4 { x: 1.64,y: 1.47,z: 0.99, w: 1.0, },  // very bright yellow
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
-        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 0.3, },   // sky light color (a = fog strength)
+        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 0.8, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
         background_color: Vec4 { x: 0.0,y: 0.0,z: 0.01,w: 1.0, },  // background color
         glow_color: Vec4 { x: 0.2,y: 0.2,z: 0.2,w: 0.1, },        // glow color (a = power)
     };
 
-    let uniform_buffer = gpu.create_uniform_buffer(&state)?;
+    let (tx,rx) = mpsc::channel();
+    let render_gpu = Arc::clone(&gpu);
+    let render_image = Arc::clone(&image);
+    let render_size = size;
+    let render_uniforms = uniforms.clone();
+    let render_thread = thread::spawn(move || {
+        if let Err(error) = {
+            dprintln!("render_thread: creating renderer");
+            let mut renderer = Renderer::new(&render_gpu,render_image,render_size,render_uniforms)?;
+            dprintln!("render_thread: created renderer");
+            loop {
+                match renderer.state {
+                    RenderState::Idle => {
+                        if let Ok(command) = rx.recv() {
+                            renderer.process_command(command)?;
+                        }
+                        else {
+                            dprintln!("render_thread: command receive error");
+                            break;
+                        }
+                    },
+                    RenderState::Rendering(_,_) => {
+                        for command in rx.try_iter() {
+                            renderer.process_command(command)?;
+                        }
+                    },
+                    RenderState::Exiting => {
+                        break;
+                    },
+                }
+                renderer.render()?;
+            }
+            Result::<(),String>::Ok(())
+        } {
+            dprintln!("render_thread: crashed ({})",error);
+        }
+        Result::<(),String>::Ok(())
+    });
 
+    dprintln!("creating fence");
     let fence = gpu.create_fence()?;
+
+    dprintln!("creating semaphore");
     let semaphore = gpu.create_semaphore()?;
 
     let mut delta: Vec2<f32> = Vec2::ZERO;
@@ -198,19 +435,24 @@ fn main() -> Result<(),String> {
     let mut d_de_stop = 1.0;
     let mut d_escape = 0.0;
 
-    let mut renderings = Vec::<Rendering>::new();
+    let mut swapchain_images = Vec::<Image>::new();
+    let mut command_buffers = Vec::<CommandBuffer>::new();
 
-    let mut rebuild = false;
-    let mut close_clicked = false;
-    while !close_clicked {
+    let mut needs_rebuild = true;
+    let mut is_running = true;
+    while is_running {
 
         system.flush().into_iter().for_each(|(_,event)| {
             match event {
                 Event::Close => {
-                    close_clicked = true;
+                    is_running = false;
                 },
-                Event::Configure(_) => {
-                    rebuild = true;
+                Event::Configure(r) => {
+                    let new_size = Vec2::<usize> { x: r.s.x as usize,y: r.s.y as usize, };
+                    if new_size != size {
+                        size = new_size;
+                        needs_rebuild = true;
+                    }
                 },
                 Event::Key(event) => {
                     match event {
@@ -218,51 +460,51 @@ fn main() -> Result<(),String> {
                             match code {
                                 // forward/backward
                                 KEY_ARROW_UP => {
-                                    delta.y = FORWARD_SENSITIVITY * state.scale;
+                                    delta.y = FORWARD_SENSITIVITY * uniforms.scale;
                                 },
                                 KEY_ARROW_DOWN => {
-                                    delta.y = -FORWARD_SENSITIVITY * state.scale;
+                                    delta.y = -FORWARD_SENSITIVITY * uniforms.scale;
                                 },
 
                                 // strafing
                                 KEY_ARROW_LEFT => {
-                                    delta.x = -STRAFE_SENSITIVITY * state.scale;
+                                    delta.x = -STRAFE_SENSITIVITY * uniforms.scale;
                                 },
                                 KEY_ARROW_RIGHT => {
-                                    delta.x = STRAFE_SENSITIVITY * state.scale;
+                                    delta.x = STRAFE_SENSITIVITY * uniforms.scale;
                                 },
 
                                 // change mode
                                 KEY_F1 => {
-                                    state.mode = VisualizationMode::Output;
+                                    uniforms.mode = VisualizationMode::Output;
                                     println!("visualization mode: output");
                                 },
                                 KEY_F2 => {
-                                    state.mode = VisualizationMode::Depth;
+                                    uniforms.mode = VisualizationMode::Depth;
                                     println!("visualization mode: depth");
                                 },
                                 KEY_F3 => {
-                                    state.mode = VisualizationMode::Normal;
+                                    uniforms.mode = VisualizationMode::Normal;
                                     println!("visualization mode: normal");
                                 },
                                 KEY_F4 => {
-                                    state.mode = VisualizationMode::DepthRB;
+                                    uniforms.mode = VisualizationMode::DepthRB;
                                     println!("visualization mode: depth (colored)");
                                 },
                                 KEY_F5 => {
-                                    state.mode = VisualizationMode::IterationsRB;
+                                    uniforms.mode = VisualizationMode::IterationsRB;
                                     println!("visualization mode: iterations");
                                 },
                                 KEY_F6 => {
-                                    state.mode = VisualizationMode::StepsRB;
+                                    uniforms.mode = VisualizationMode::StepsRB;
                                     println!("visualization mode: march steps");
                                 },
                                 KEY_F7 => {
-                                    state.mode = VisualizationMode::Occlusion;
+                                    uniforms.mode = VisualizationMode::Occlusion;
                                     println!("visualization mode: occlusion");
                                 },
                                 KEY_F8 => {
-                                    state.mode = VisualizationMode::Debug;
+                                    uniforms.mode = VisualizationMode::Debug;
                                     println!("visualization mode: debug");
                                 },
 
@@ -310,7 +552,7 @@ fn main() -> Result<(),String> {
                             match code {
 
                                 KEY_ESC => {
-                                    close_clicked = true;
+                                    is_running = false;
                                 },
 
                                 KEY_ARROW_UP | KEY_ARROW_DOWN => {
@@ -377,33 +619,36 @@ fn main() -> Result<(),String> {
             }
         });
 
-        // only process last configure event
-        if rebuild {
+        // rebuild image if needed
+        if needs_rebuild {
+
+            dprintln!("waiting for GPU");
             gpu.wait_idle();
-            renderings.clear();
-            let images = surface.reconfigure()?;
-            let s = surface.get_size();
-            state.size.x = s.x as f32;
-            state.size.y = s.y as f32;
-            for image in images {
-                let image_view = gpu.create_image_view(&image)?;
-                let descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
-                    &Descriptor::UniformBuffer(&uniform_buffer),
-                    &Descriptor::StorageImage(&image_view)
-                ])?;
-                let command_buffer = gpu.create_command_buffer()?;
-                command_buffer.begin()?;
-                command_buffer.bind_compute_pipeline(&compute_pipeline);
-                command_buffer.bind_descriptor_set(&pipeline_layout,0,&descriptor_set)?;
-                command_buffer.dispatch(s.x,s.y,1);
-                command_buffer.end()?;
-                renderings.push(Rendering {
-                    image_view,
-                    descriptor_set,
-                    command_buffer,
-                });
+
+            dprintln!("creating image");
+            image = Arc::new(gpu.create_image(size)?);
+
+            dprintln!("sending new image to render thread");
+            if let Err(error) = tx.send(RenderCommand::NewImage(Arc::clone(&image),size)) {
+                dprintln!("unable to send new image to render thread ({})",error);
             }
-            rebuild = false;
+
+            dprintln!("reconfiguring surface");
+            swapchain_images = surface.reconfigure()?;
+
+            dprintln!("rebuilding command buffers");
+            command_buffers.clear();
+            for i in 0..swapchain_images.len() {
+                let command_buffer = blit_queue.create_command_buffer()?;
+                command_buffer.begin()?;
+                command_buffer.copy_image(&image,&swapchain_images[i],Rect { o: Vec2::<isize>::ZERO,s: Vec2 { x: size.x as isize,y: size.y as isize, }, });
+                command_buffer.end()?;
+                command_buffers.push(command_buffer);
+            }
+
+            dprintln!("rebuilt");
+
+            needs_rebuild = false;
         }
 
         // process movement
@@ -411,46 +656,52 @@ fn main() -> Result<(),String> {
         let forward = rotation * Vec3::<f32> { x: 0.0,y: 0.0,z: 1.0, };
         let right = rotation * Vec3::<f32> { x: 1.0,y: 0.0,z: 0.0, };
         pos += delta.y * forward + delta.x * right;
-        state.view = Mat4x4::<f32>::from_mv(rotation,pos);
+        uniforms.view = Mat4x4::<f32>::from_mv(rotation,pos);
 
         // process parameter updates
-        state.scale = (state.scale * d_scale).clamp(0.00001,10.0);
-        state.de_stop = (state.de_stop * d_de_stop).clamp(0.1,10000.0);
-        state.escape = (state.escape + d_escape).clamp(1.0,100.0);
+        uniforms.scale = (uniforms.scale * d_scale).clamp(0.00001,10.0);
+        uniforms.de_stop = (uniforms.de_stop * d_de_stop).clamp(0.1,10000.0);
+        uniforms.escape = (uniforms.escape + d_escape).clamp(1.0,100.0);
 
         // print which parameters got updated
         if d_scale != 1.0 {
-            println!("scale: {}",state.scale);
+            println!("scale: {}",uniforms.scale);
         }
         if d_de_stop != 1.0 {
-            println!("de_stop: {}",state.de_stop);
+            println!("de_stop: {}",uniforms.de_stop);
         }
         if d_escape != 0.0 {
-            println!("escape: {}",state.escape);
+            println!("escape: {}",uniforms.escape);
         }
 
-        // and update everything to the shaders
-        uniform_buffer.update(&state);
+        // instruct thread to start a new rendering
+        if (delta.x != 0.0) || (delta.y != 0.0) || (d_scale != 1.0) || (d_de_stop != 1.0) || (d_escape != 0.0) || button_pressed {
+            if let Err(error) = tx.send(RenderCommand::NewUniforms(uniforms.clone())) {
+                dprintln!("unable to send uniforms to render thread ({})",error);
+            }
+        }
 
         // only draw if a command buffer exists
-        if renderings.len() > 0 {
-
-            // acquire frame
+        if command_buffers.len() > 0 {
             fence.reset()?;
             let index = surface.acquire(&fence)?;
             fence.wait()?;
-
-            // render frame
             fence.reset()?;
-            renderings[index].command_buffer.submit(None,Some(&semaphore),Some(&fence))?;
+            blit_queue.submit(&command_buffers[index],None,Some(&semaphore),Some(&fence))?;
             fence.wait()?;
-
-            // present frame
-            if let Err(_) = surface.present(index,Some(&semaphore)) {
-                rebuild = true;
+            if let Err(error) = surface.present(&blit_queue,index,Some(&semaphore)) {
+                dprintln!("presentation error: {}",error);
+                needs_rebuild = true;
             }
         }
     }
+
+    dprintln!("done.");
+
+    gpu.wait_idle();
+
+    tx.send(RenderCommand::Exit).expect("unable to send exit to thread");
+    render_thread.join().expect("unable to join with thread")?;
 
     Ok(())
 }
