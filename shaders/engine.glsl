@@ -118,6 +118,7 @@ FLOAT query_distance(VEC3 p,out uint i) {
     FLOAT dr = 1.0;
     FLOAT r = length(v);
     i = 0;
+    /*
     //rotate4d(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
@@ -151,8 +152,9 @@ FLOAT query_distance(VEC3 p,out uint i) {
     amazingbox2(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
+    */
     for (; (r < state_escape) && (i < state_max_iterations); i++) {
-        kochcube(v,dr,p);
+        menger3(v,dr,p);
         r = length(v);
     }
     return r / abs(dr);
@@ -342,7 +344,7 @@ void main() {
     bool debug = false;
 
     // depth-of-field
-    #if 1
+    #if 0
     vec3 screen_dx = (state_view * vec4(f * aspect,0.0,1.0,1.0)).xyz;
     vec3 screen_dy = (state_view * vec4(0.0,f,1.0,1.0)).xyz;
 
