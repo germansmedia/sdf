@@ -11,22 +11,23 @@ layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 #define MODE_OCCLUSION_RB  6
 #define MODE_DEBUG         7
 
-#define INTERLACING_FULL16X16 0
-#define INTERLACING_RIGHT8X16 1
-#define INTERLACING_BOTTOM8X8 2
-#define INTERLACING_RIGHT4X8  3
-#define INTERLACING_BOTTOM4X4 4
-#define INTERLACING_RIGHT2X4  5
-#define INTERLACING_BOTTOM2X2 6
-#define INTERLACING_RIGHT1X2  7
-#define INTERLACING_BOTTOM1X1 8
+#define PROGRESSIVE_FULL16X16 0
+#define PROGRESSIVE_RIGHT8X16 1
+#define PROGRESSIVE_BOTTOM8X8 2
+#define PROGRESSIVE_RIGHT4X8  3
+#define PROGRESSIVE_BOTTOM4X4 4
+#define PROGRESSIVE_RIGHT2X4  5
+#define PROGRESSIVE_BOTTOM2X2 6
+#define PROGRESSIVE_RIGHT1X2  7
+#define PROGRESSIVE_BOTTOM1X1 8
 
 layout (std140,binding = 0) readonly uniform Uniforms {
     mat4 state_view;              // view matrix
 
-    vec2 state_size;              // size of the output, in pixels
     float state_fovy;             // vertical FoV
     float state_scale;            // generic scale of the operation
+    float state_focus;            // distance to focus plane
+    float state_aperture;         // how far apart the rays start
 
     uint state_mode;              // visualization mode
     uint state_max_steps;         // maximum number of ray marching steps
@@ -36,12 +37,7 @@ layout (std140,binding = 0) readonly uniform Uniforms {
     float state_horizon;          // furthest distance to view
     float state_escape;           // fractal iteration escape value
     float state_de_stop;          // closest approach to the fractal
-    float state_focus;            // distance to focus plane
-
-    float state_aperture;         // how far apart the rays start
     float tbd1;
-    float tbd2;
-    float tbd3;
 
     vec4 state_colors[16];        // primary color table
 
@@ -60,8 +56,10 @@ layout (std140,binding = 0) readonly uniform Uniforms {
     vec4 state_glow_color;        // glow color (a = power)
 };
 
-layout (std140,push_constant) readonly uniform Interlacing {
-    uint state_interlacing;
+layout (std140,push_constant) readonly uniform PushConstants {
+    vec2 state_size;
+    uint state_progressive;
+    uint state_offset;
 };
 
 layout (binding = 1) writeonly uniform image2D out_frame;
@@ -87,6 +85,7 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #include "reciprocalz3b.glsl"
 #include "rotate4d.glsl"
 #include "amazingbox2.glsl"
+#include "amazingsurf.glsl"
 //#include "polyfoldsym.glsl"
 
 #if 0
@@ -118,7 +117,6 @@ FLOAT query_distance(VEC3 p,out uint i) {
     FLOAT dr = 1.0;
     FLOAT r = length(v);
     i = 0;
-    /*
     //rotate4d(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
@@ -128,33 +126,29 @@ FLOAT query_distance(VEC3 p,out uint i) {
     //polyfoldsym(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
-    amazingbox2(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    amazingbox2(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
     reciprocalz3b(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
+    //rotate4d(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
+    //mandelbox(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
     rotate4d(v,dr,p);
     r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     i++;
-    kochcube(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    amazingbox2(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    rotate4d(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    amazingbox2(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    */
+    //mandelbox(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
+    //rotate4d(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
+    //mandelbox(v,dr,p);
+    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    //i++;
     for (; (r < state_escape) && (i < state_max_iterations); i++) {
-        menger3(v,dr,p);
+        amazingsurf(v,dr,p);
         r = length(v);
     }
     return r / abs(dr);
@@ -298,24 +292,17 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
 
 void main() {
 
-    // get invocation coordinates
-    uint ix = gl_GlobalInvocationID.x;
-    uint iy = gl_GlobalInvocationID.y;
+    // get start of block
+    uint bx = gl_GlobalInvocationID.x << 4;
+    uint by = gl_GlobalInvocationID.y << 4;
 
-    // convert to real pixel coordinates
-    uint px = 0;
-    uint py = 0;
-    switch (state_interlacing) {
-        case INTERLACING_FULL16X16: px = ix << 4; py = iy << 4; break;
-        case INTERLACING_RIGHT8X16: px = (ix << 4) + 8; py = iy << 4; break;
-        case INTERLACING_BOTTOM8X8: px = ix << 3; py = (iy << 4) + 8; break;
-        case INTERLACING_RIGHT4X8: px = (ix << 3) + 4; py = iy << 3; break;
-        case INTERLACING_BOTTOM4X4: px = ix << 2; py = (iy << 3) + 4; break;
-        case INTERLACING_RIGHT2X4: px = (ix << 2) + 2; py = iy << 2; break;
-        case INTERLACING_BOTTOM2X2: px = ix << 1; py = (iy << 2) + 2; break;
-        case INTERLACING_RIGHT1X2: px = (ix << 1) + 1; py = iy << 1; break;
-        case INTERLACING_BOTTOM1X1: px = ix; py = (iy << 1) + 1; break;
-    }
+    // decode offset
+    uint ofsx = state_offset & 0x0F;
+    uint ofsy = state_offset >> 4;
+
+    // get pixel coordinages for this pass
+    uint px = bx + ofsx;
+    uint py = by + ofsy;
 
     // place screen at z=1
     float f = tan(0.5 * state_fovy);
@@ -404,70 +391,98 @@ void main() {
 
     // and draw
     vec4 result = vec4(c,1.0);
-    switch (state_interlacing) {
-        case INTERLACING_FULL16X16:
-            for (uint i = 0; i < 16; i++) {
-                for (uint k = 0; k < 16; k++) {
-                    imageStore(out_frame,ivec2(px + k,py + i),result);
+    uint ox,oy;
+    switch (state_progressive) {
+
+        case PROGRESSIVE_FULL16X16:
+            for (uint y = 0; y < 16; y++) {
+                for (uint x = 0; x < 16; x++) {
+                    imageStore(out_frame,ivec2(bx + x,by + y),result);
+                }
+            }
+            break;
+        
+        case PROGRESSIVE_RIGHT8X16:
+            ox = ofsx & 8;
+            for (uint y = 0; y < 16; y++) {
+                for (uint x = 0; x < 8; x++) {
+                    imageStore(out_frame,ivec2(bx + ox + x,by + y),result);
                 }
             }
             break;
 
-        case INTERLACING_RIGHT8X16:
-            for (uint i = 0; i < 16; i++) {
-                for (uint k = 0; k < 8; k++) {
-                    imageStore(out_frame,ivec2(px + k,py + i),result);
+        case PROGRESSIVE_BOTTOM8X8:
+            ox = ofsx & 8;
+            oy = ofsy & 8;
+            for (uint y = 0; y < 8; y++) {
+                for (uint x = 0; x < 8; x++) {
+                    imageStore(out_frame,ivec2(bx + ox + x,by + oy + y),result);
                 }
             }
             break;
 
-        case INTERLACING_BOTTOM8X8:
-            for (uint i = 0; i < 8; i++) {
-                for (uint k = 0; k < 8; k++) {
-                    imageStore(out_frame,ivec2(px + k,py + i),result);
+        case PROGRESSIVE_RIGHT4X8:
+            ox = ofsx & 12;
+            oy = ofsy & 8;
+            for (uint y = 0; y < 8; y++) {
+                for (uint x = 0; x < 4; x++) {
+                    imageStore(out_frame,ivec2(bx + ox + x,by + oy + y),result);
                 }
             }
             break;
 
-        case INTERLACING_RIGHT4X8:
-            for (uint i = 0; i < 8; i++) {
-                for (uint k = 0; k < 4; k++) {
-                    imageStore(out_frame,ivec2(px + k,py + i),result);
-                }
-            }
+        case PROGRESSIVE_BOTTOM4X4:
+            ox = ofsx & 12;
+            oy = ofsy & 12;
+            imageStore(out_frame,ivec2(bx + ox,    by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox + 2,by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox + 3,by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 1),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy + 1),result);
+            imageStore(out_frame,ivec2(bx + ox + 2,by + oy + 1),result);
+            imageStore(out_frame,ivec2(bx + ox + 3,by + oy + 1),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 2),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy + 2),result);
+            imageStore(out_frame,ivec2(bx + ox + 2,by + oy + 2),result);
+            imageStore(out_frame,ivec2(bx + ox + 3,by + oy + 2),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 3),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy + 3),result);
+            imageStore(out_frame,ivec2(bx + ox + 2,by + oy + 3),result);
+            imageStore(out_frame,ivec2(bx + ox + 3,by + oy + 3),result);
             break;
 
-        case INTERLACING_BOTTOM4X4:
-            for (uint i = 0; i < 4; i++) {
-                for (uint k = 0; k < 4; k++) {
-                    imageStore(out_frame,ivec2(px + k,py + i),result);
-                }
-            }
+        case PROGRESSIVE_RIGHT2X4:
+            ox = ofsx & 14;
+            oy = ofsy & 12;
+            imageStore(out_frame,ivec2(bx + ox,    by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 1),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy + 1),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 2),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy + 2),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 3),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy + 3),result);
             break;
 
-        case INTERLACING_RIGHT2X4:
-            for (uint i = 0; i < 4; i++) {
-                for (uint k = 0; k < 2; k++) {
-                    imageStore(out_frame,ivec2(px + k,py + i),result);
-                }
-            }
+        case PROGRESSIVE_BOTTOM2X2:
+            ox = ofsx & 14;
+            oy = ofsy & 14;
+            imageStore(out_frame,ivec2(bx + ox,    by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 1),result);
+            imageStore(out_frame,ivec2(bx + ox + 1,by + oy + 1),result);
             break;
 
-        case INTERLACING_BOTTOM2X2:
-            for (uint i = 0; i < 2; i++) {
-                for (uint k = 0; k < 2; k++) {
-                    imageStore(out_frame,ivec2(px + k,py + i),result);
-                }
-            }
+        case PROGRESSIVE_RIGHT1X2:
+            ox = ofsx & 15;
+            oy = ofsy & 14;
+            imageStore(out_frame,ivec2(bx + ox,    by + oy),result);
+            imageStore(out_frame,ivec2(bx + ox,    by + oy + 1),result);
             break;
 
-        case INTERLACING_RIGHT1X2:
-            for (uint i = 0; i < 2; i++) {
-                imageStore(out_frame,ivec2(px,py + i),result);
-            }
-            break;
-
-        case INTERLACING_BOTTOM1X1:
+        case PROGRESSIVE_BOTTOM1X1:
             imageStore(out_frame,ivec2(px,py),result);
+            break;
     }
 }

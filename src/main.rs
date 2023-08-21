@@ -49,6 +49,37 @@ const POINTER_SENSITIVITY: f32 = 0.001;
 const SCALE_FACTOR: f32 = 1.01;
 const DE_STOP_FACTOR: f32 = 1.01;
 const ESCAPE_FACTOR: f32 = 0.1;
+const FOCUS_FACTOR: f32 = 0.001;
+const APERTURE_FACTOR: f32 = 0.001;
+
+const DESMOND9_FULL16X16: (u32,u32) = (0,0);
+const DESMOND9_RIGHT8X16: (u32,u32) = (8,8);
+const DESMOND9_BOTTOM8X8: [(u32,u32); 2] = [(8,0),(0,8),];
+const DESMOND9_RIGHT4X8: [(u32,u32); 4] = [(4,4),(12,12),(12,4),(4,12),];
+const DESMOND9_BOTTOM4X4: [(u32,u32); 8] = [(4,0),(12,8),(12,0),(4,8),(0,4),(8,12),(8,4),(0,12),];
+const DESMOND9_RIGHT2X4: [(u32,u32); 16] = [
+    (2,2),(10,10),(10,2),(2,10),(6,6),(14,14),(14,6),(6,14),(6,2),(14,10),(14,2),(6,10),(2,6),(10,14),(10,6),(2,14),
+];
+const DESMOND9_BOTTOM2X2: [(u32,u32); 32] = [
+    (2,0),(10,8),(10,0),(2,8), (6,4),(14,12),(14,4),(6,12),(6,0),(14,8), (14,0),(6,8), (2,4),(10,12),(10,4),(2,12),
+    (0,2),(8,10),(8,2), (0,10),(4,6),(12,14),(12,6),(4,14),(4,2),(12,10),(12,2),(4,10),(0,6),(8,14), (8,6), (0,14),
+];
+const DESMOND9_RIGHT1X2: [(u32,u32); 64] = [
+    (1,1),(9,9),  (9,1), (1,9), (5,5),(13,13),(13,5),(5,13),(5,1),(13,9), (13,1),(5,9), (1,5),(9,13), (9,5), (1,13),
+    (3,3),(11,11),(11,3),(3,11),(7,7),(15,15),(15,7),(7,15),(7,3),(15,11),(15,3),(7,11),(3,7),(11,15),(11,7),(3,15),
+    (3,1),(11,9), (11,1),(3,9), (7,5),(15,13),(15,5),(7,13),(7,1),(15,9), (15,1),(7,9), (3,5),(11,13),(11,5),(3,13),
+    (1,3),(9,11), (9,3), (1,11),(5,7),(13,15),(13,7),(5,15),(5,3),(13,11),(13,3),(5,11),(1,7),(9,15), (9,7), (1,15),
+];
+const DESMOND9_BOTTOM1X1: [(u32,u32); 128] = [
+    (1,0),(9,8),  (9,0), (1,8), (5,4),(13,12),(13,4),(5,12), (5,0),(13,8), (13,0),(5,8), (1,4),(9,12), (9,4), (1,12),
+    (3,2),(11,10),(11,2),(3,10),(7,6),(15,14),(15,6),(7,14), (7,2),(15,10),(15,2),(7,10),(3,6),(11,14),(11,6),(3,14),
+    (3,0),(11,8), (11,0),(3,8), (7,4),(15,12),(15,4),(7,12), (7,0),(15,8), (15,0),(7,8), (3,4),(11,12),(11,4),(3,12),
+    (1,2),(9,10), (9,2), (1,10),(5,6),(13,14),(13,6),(5,14), (5,2),(13,10),(13,2),(5,10),(1,6),(9,14), (9,6), (1,14),
+    (0,1),(8,9),  (8,1), (0,9), (4,5),(12,13),(12,5),(4,13), (4,1),(12,9), (12,1),(4,9), (0,5),(8,13), (8,5), (0,13),
+    (2,3),(10,11),(10,3),(2,11),(6,7),(14,15),(14,7),(6,15), (6,3),(14,11),(14,3),(6,11),(2,7),(10,15),(10,7),(2,15),
+    (2,1),(10,9), (10,1),(2,9), (6,5),(14,13),(14,5),(6,13), (6,1),(14,9), (14,1),(6,9), (2,5),(10,13),(10,5),(2,13),
+    (0,3),(8,11), (8,3),(0,11), (4,7),(12,15),(12,7),(4,15), (4,3),(12,11),(12,3),(4,11),(0,7),(8,15), (8,7), (0,15),
+];
 
 #[derive(Clone)]
 #[repr(u32)]
@@ -65,7 +96,7 @@ enum VisualizationMode {
 
 #[derive(Clone,Copy)]
 #[repr(u32)]
-enum Interlacing {
+enum Progressive {
     Full16x16,
     Right8x16,
     Bottom8x8,
@@ -84,9 +115,10 @@ struct Uniforms {
 
     view: Mat4x4<f32>,             // view matrix
 
-    size: Vec2<f32>,               // size of the output, in pixels
     fovy: f32,                     // vertical FoV
     scale: f32,                    // generic scale of the operation
+    focus: f32,                    // focus distance
+    aperture: f32,                 // aperture radius
 
     mode: VisualizationMode,       // visualization mode
     max_steps: u32,                // maximum number of ray marching steps
@@ -96,12 +128,7 @@ struct Uniforms {
     horizon: f32,                  // furthest distance to view
     escape: f32,                   // fractal iteration escape value
     de_stop: f32,                  // closest approach to the fractal
-    focus: f32,                    // focus distance
-
-    aperture: f32,                 // aperture radius
     tbd1: f32,
-    tbd2: f32,
-    tbd3: f32,
 
     colors: [Vec4<f32>; 16],       // primary color table
 
@@ -123,10 +150,9 @@ struct Uniforms {
 #[repr(C)]
 #[derive(Clone,Copy)]
 struct PushConstants {
-    interlacing: Interlacing,
-    tbd0: u32,
-    tbd1: u32,
-    tbd2: u32,
+    size: Vec2<f32>,
+    progressive: Progressive,
+    offset: u32,
 }
 
 enum RenderCommand {
@@ -137,7 +163,7 @@ enum RenderCommand {
 
 enum RenderState {
     Idle,
-    Rendering(Interlacing,Vec2<usize>),
+    Rendering(Progressive,usize),
     Exiting,
 }
 
@@ -163,43 +189,26 @@ impl<'a> Renderer<'a> {
 
     fn new(gpu: &'a Gpu,image: Arc<Image>,size: Vec2<usize>,initial_uniforms: Uniforms) -> Result<Renderer,String> {
 
-        dprintln!("render_thread: getting queue");
         let queue = gpu.get_queue(1)?;
 
-        dprintln!("render_thread: loading shader");
         let mut f = File::open("shaders/engine.spirv").expect("unable to open compute shader");
         let mut code = Vec::<u8>::new();
         f.read_to_end(&mut code).expect("unable to read compute shader");
         let compute_shader = gpu.create_compute_shader(&code)?;
 
-        dprintln!("render_thread: creating descriptor set layout");
         let descriptor_set_layout = gpu.create_descriptor_set_layout(&[
             DescriptorBinding::UniformBuffer,
             DescriptorBinding::StorageImage,
         ])?;
-
-        dprintln!("render_thread: creating pipeline layout");
         let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<PushConstants>())?;
-
-        dprintln!("render_thread: creating compute pipeline");
         let compute_pipeline = gpu.create_compute_pipeline(&pipeline_layout,&compute_shader)?;
-
-        dprintln!("render_thread: creating uniform buffer");
         let uniform_buffer = gpu.create_uniform_buffer(&initial_uniforms)?;
-
-        dprintln!("render_thread: creating fence");
         let fence = gpu.create_fence()?;
-
-        dprintln!("render_thread: create image view");
         let image_view = gpu.create_image_view(&image)?;
-
-        dprintln!("render_thread: creating descriptor set");
-        let mut descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
+        let descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
             &Descriptor::UniformBuffer(&uniform_buffer),
             &Descriptor::StorageImage(&image_view),
         ])?;
-
-        dprintln!("render_thread: creating command buffer");
         let command_buffer = queue.create_command_buffer()?;
 
         Ok(Renderer {
@@ -226,14 +235,12 @@ impl<'a> Renderer<'a> {
         match command {
 
             RenderCommand::NewUniforms(new_uniforms) => {
-                dprintln!("render_thread: new uniforms");
                 self.uniforms = new_uniforms;
                 self.uniform_buffer.update(&self.uniforms);
-                self.state = RenderState::Rendering(Interlacing::Full16x16,Vec2 { x: self.size.x >> 4,y: self.size.y >> 4, });
+                self.state = RenderState::Rendering(Progressive::Full16x16,0);
             },
 
             RenderCommand::NewImage(image,size) => {
-                dprintln!("render_thread: new image");
                 self.image = image;
                 self.size = size;
                 self.image_view = self.gpu.create_image_view(&self.image)?;
@@ -241,9 +248,7 @@ impl<'a> Renderer<'a> {
                     &Descriptor::UniformBuffer(&self.uniform_buffer),
                     &Descriptor::StorageImage(&self.image_view),
                 ])?;
-                self.uniforms.size = Vec2 { x: size.x as f32,y: size.y as f32, };
-                self.uniform_buffer.update(&self.uniforms);
-                self.state = RenderState::Rendering(Interlacing::Full16x16,Vec2 { x: self.size.x >> 4,y: self.size.y >> 4, });
+                self.state = RenderState::Rendering(Progressive::Full16x16,0);
             },
 
             RenderCommand::Exit => {
@@ -256,39 +261,81 @@ impl<'a> Renderer<'a> {
 
     fn render(&mut self) -> Result<(),String> {
 
-        if let RenderState::Rendering(interlacing,size) = self.state {
-
-            dprintln!("render thread: level {}, size {}",interlacing as usize,size);
+        if let RenderState::Rendering(progressive,pass) = self.state {
 
             self.command_buffer = self.queue.create_command_buffer()?;
-
+            let offset = match progressive {
+                Progressive::Full16x16 => DESMOND9_FULL16X16,
+                Progressive::Right8x16 => DESMOND9_RIGHT8X16,
+                Progressive::Bottom8x8 => DESMOND9_BOTTOM8X8[pass],
+                Progressive::Right4x8 => DESMOND9_RIGHT4X8[pass],
+                Progressive::Bottom4x4 => DESMOND9_BOTTOM4X4[pass],
+                Progressive::Right2x4 => DESMOND9_RIGHT2X4[pass],
+                Progressive::Bottom2x2 => DESMOND9_BOTTOM2X2[pass],
+                Progressive::Right1x2 => DESMOND9_RIGHT1X2[pass],
+                Progressive::Bottom1x1 => DESMOND9_BOTTOM1X1[pass],
+            };
             let constants = PushConstants {
-                interlacing,
-                tbd0: 0,
-                tbd1: 0,
-                tbd2: 0,
+                size: Vec2 { x: self.size.x as f32,y: self.size.y as f32, },
+                progressive,
+                offset: (offset.1 << 4) | offset.0,
             };
             self.command_buffer.begin()?;
             self.command_buffer.bind_compute_pipeline(&self.compute_pipeline);
             self.command_buffer.push_constants(&self.pipeline_layout,&constants);
             self.command_buffer.bind_descriptor_set(&self.pipeline_layout,0,&self.descriptor_set)?;
-            self.command_buffer.dispatch(size.x,size.y,1);
+            self.command_buffer.dispatch(self.size.x >> 4,self.size.y >> 4,1);
             self.command_buffer.end()?;
     
             self.fence.reset()?;
             self.queue.submit(&self.command_buffer,None,None,Some(&self.fence))?;
             self.fence.wait()?;
     
-            self.state = match interlacing {
-                Interlacing::Full16x16 => RenderState::Rendering(Interlacing::Right8x16,Vec2 { x: self.size.x >> 4,y: self.size.y >> 4, }),
-                Interlacing::Right8x16 => RenderState::Rendering(Interlacing::Bottom8x8,Vec2 { x: self.size.x >> 3,y: self.size.y >> 4, }),
-                Interlacing::Bottom8x8 => RenderState::Rendering(Interlacing::Right4x8,Vec2 { x: self.size.x >> 3,y: self.size.y >> 3, }),
-                Interlacing::Right4x8 => RenderState::Rendering(Interlacing::Bottom4x4,Vec2 { x: self.size.x >> 2,y: self.size.y >> 3, }),
-                Interlacing::Bottom4x4 => RenderState::Rendering(Interlacing::Right2x4,Vec2 { x: self.size.x >> 2,y: self.size.y >> 2, }),
-                Interlacing::Right2x4 => RenderState::Rendering(Interlacing::Bottom2x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 2, }),
-                Interlacing::Bottom2x2 => RenderState::Rendering(Interlacing::Right1x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 1, }),
-                Interlacing::Right1x2 => RenderState::Rendering(Interlacing::Bottom1x1,Vec2 { x: self.size.x,y: self.size.y >> 1, }),
-                Interlacing::Bottom1x1 => RenderState::Idle,
+            self.state = match progressive {
+                Progressive::Full16x16 => RenderState::Rendering(Progressive::Right8x16,0),
+                Progressive::Right8x16 => RenderState::Rendering(Progressive::Bottom8x8,0),
+                Progressive::Bottom8x8 => if pass >= 1 {
+                    RenderState::Rendering(Progressive::Right4x8,0)
+                }
+                else {
+                    RenderState::Rendering(Progressive::Bottom8x8,pass + 1)
+                },
+                Progressive::Right4x8 => if pass >= 3 {
+                    RenderState::Rendering(Progressive::Bottom4x4,0)
+                }
+                else {
+                    RenderState::Rendering(Progressive::Right4x8,pass + 1)
+                },
+                Progressive::Bottom4x4 => if pass >= 7 {
+                    RenderState::Rendering(Progressive::Right2x4,0)
+                }
+                else {
+                    RenderState::Rendering(Progressive::Bottom4x4,pass + 1)
+                },
+                Progressive::Right2x4 => if pass >= 15 {
+                    RenderState::Rendering(Progressive::Bottom2x2,0)
+                }
+                else {
+                    RenderState::Rendering(Progressive::Right2x4,pass + 1)
+                },
+                Progressive::Bottom2x2 => if pass >= 31 {
+                    RenderState::Rendering(Progressive::Right1x2,0)
+                }
+                else {
+                    RenderState::Rendering(Progressive::Bottom2x2,pass + 1)
+                },
+                Progressive::Right1x2 => if pass >= 63 {
+                    RenderState::Rendering(Progressive::Bottom1x1,0)
+                }
+                else {
+                    RenderState::Rendering(Progressive::Right1x2,pass + 1)
+                },
+                Progressive::Bottom1x1 => if pass >= 127 {
+                    RenderState::Idle
+                }
+                else {
+                    RenderState::Rendering(Progressive::Bottom1x1,pass + 1)
+                },
             };
         }
 
@@ -317,9 +364,10 @@ fn main() -> Result<(),String> {
     let mut dir = Quaternion::<f32>::ONE;
     let mut uniforms = Uniforms {
         view: Mat4x4::<f32>::from_mv(Mat3x3::from(dir),pos),
-        size: Vec2 { x: size.x as f32,y: size.y as f32, },
         fovy: 72.0.to_radians(),
         scale: 1.0,
+        focus: 2.0,
+        aperture: 0.01,
         mode: VisualizationMode::Output,
         max_steps: 1000,
         max_iterations: 120,
@@ -327,11 +375,7 @@ fn main() -> Result<(),String> {
         horizon: 100.0,
         escape: 40.0,
         de_stop: 500.0,
-        focus: 2.0,
-        aperture: 0.01,
         tbd1: 0.0,
-        tbd2: 0.0,
-        tbd3: 0.0,
         colors: [
             Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
             Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
@@ -355,7 +399,7 @@ fn main() -> Result<(),String> {
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
         sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 0.8, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
-        background_color: Vec4 { x: 0.0,y: 0.0,z: 0.01,w: 1.0, },  // background color
+        background_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },  // background color
         glow_color: Vec4 { x: 0.2,y: 0.2,z: 0.2,w: 0.1, },        // glow color (a = power)
     };
 
@@ -366,9 +410,7 @@ fn main() -> Result<(),String> {
     let render_uniforms = uniforms.clone();
     let render_thread = thread::spawn(move || {
         if let Err(error) = {
-            dprintln!("render_thread: creating renderer");
             let mut renderer = Renderer::new(&render_gpu,render_image,render_size,render_uniforms)?;
-            dprintln!("render_thread: created renderer");
             loop {
                 match renderer.state {
                     RenderState::Idle => {
@@ -398,11 +440,11 @@ fn main() -> Result<(),String> {
         Result::<(),String>::Ok(())
     });
 
-    dprintln!("creating fence");
     let fence = gpu.create_fence()?;
-
-    dprintln!("creating semaphore");
     let semaphore = gpu.create_semaphore()?;
+
+    let mut swapchain_images = Vec::<Image>::new();
+    let mut command_buffers = Vec::<CommandBuffer>::new();
 
     let mut delta: Vec2<f32> = Vec2::ZERO;
     let mut prev_position: Vec2<f32> = Vec2::ZERO;
@@ -411,14 +453,14 @@ fn main() -> Result<(),String> {
     let mut d_scale = 1.0;
     let mut d_de_stop = 1.0;
     let mut d_escape = 0.0;
-
-    let mut swapchain_images = Vec::<Image>::new();
-    let mut command_buffers = Vec::<CommandBuffer>::new();
+    let mut d_focus = 0.0;
+    let mut d_aperture = 0.0;
 
     let mut needs_rebuild = true;
     let mut is_running = true;
     while is_running {
 
+        let mut mode_change = false;
         system.flush().into_iter().for_each(|(_,event)| {
             match event {
                 Event::Close => {
@@ -454,42 +496,50 @@ fn main() -> Result<(),String> {
                                 // change mode
                                 KEY_F1 => {
                                     uniforms.mode = VisualizationMode::Output;
+                                    mode_change = true;
                                     println!("visualization mode: output");
                                 },
                                 KEY_F2 => {
                                     uniforms.mode = VisualizationMode::Depth;
+                                    mode_change = true;
                                     println!("visualization mode: depth");
                                 },
                                 KEY_F3 => {
                                     uniforms.mode = VisualizationMode::Normal;
+                                    mode_change = true;
                                     println!("visualization mode: normal");
                                 },
                                 KEY_F4 => {
                                     uniforms.mode = VisualizationMode::DepthRB;
+                                    mode_change = true;
                                     println!("visualization mode: depth (colored)");
                                 },
                                 KEY_F5 => {
                                     uniforms.mode = VisualizationMode::IterationsRB;
+                                    mode_change = true;
                                     println!("visualization mode: iterations");
                                 },
                                 KEY_F6 => {
                                     uniforms.mode = VisualizationMode::StepsRB;
+                                    mode_change = true;
                                     println!("visualization mode: march steps");
                                 },
                                 KEY_F7 => {
                                     uniforms.mode = VisualizationMode::Occlusion;
+                                    mode_change = true;
                                     println!("visualization mode: occlusion");
                                 },
                                 KEY_F8 => {
                                     uniforms.mode = VisualizationMode::Debug;
+                                    mode_change = true;
                                     println!("visualization mode: debug");
                                 },
 
                                 KEY_OBRACK => {
-                                    d_scale = SCALE_FACTOR;
+                                    d_scale = 1.0 / SCALE_FACTOR;
                                 },
                                 KEY_CBRACK => {
-                                    d_scale = 1.0 / SCALE_FACTOR;
+                                    d_scale = SCALE_FACTOR;
                                 },
 
                                 KEY_Q => {
@@ -504,21 +554,18 @@ fn main() -> Result<(),String> {
                                 KEY_S => {
                                     d_escape = -ESCAPE_FACTOR;
                                 },
-
-                                /*
                                 KEY_E => {
-                                    params_delta.z = DE_STOP_SENSITIVITY;
+                                    d_focus = FOCUS_FACTOR;
                                 },
                                 KEY_D => {
-                                    params_delta.z = 1.0 / DE_STOP_SENSITIVITY;
+                                    d_focus = -FOCUS_FACTOR;
                                 },
                                 KEY_R => {
-                                    params_delta.w = FACTOR_SENSITIVITY;
+                                    d_aperture = APERTURE_FACTOR;
                                 },
                                 KEY_F => {
-                                    params_delta.w = 1.0 / FACTOR_SENSITIVITY;
+                                    d_aperture = -APERTURE_FACTOR;
                                 }
-                                */
 
                                 _ => {
                                     println!("pressed {}",code);
@@ -551,14 +598,12 @@ fn main() -> Result<(),String> {
                                 KEY_W | KEY_S => {
                                     d_escape = 0.0;
                                 },
-                                /*
                                 KEY_E | KEY_D => {
-                                    params_delta.z = 1.0;
+                                    d_focus = 0.0;
                                 },
                                 KEY_R | KEY_F => {
-                                    params_delta.w = 1.0;
+                                    d_aperture = 0.0;
                                 },
-                                */
 
                                 _ => {
                                     println!("released {}",code);
@@ -599,21 +644,15 @@ fn main() -> Result<(),String> {
         // rebuild image if needed
         if needs_rebuild {
 
-            dprintln!("waiting for GPU");
             gpu.wait_idle();
 
-            dprintln!("creating image");
             image = Arc::new(gpu.create_image(size)?);
-
-            dprintln!("sending new image to render thread");
             if let Err(error) = tx.send(RenderCommand::NewImage(Arc::clone(&image),size)) {
                 dprintln!("unable to send new image to render thread ({})",error);
             }
 
-            dprintln!("reconfiguring surface");
             swapchain_images = surface.reconfigure()?;
 
-            dprintln!("rebuilding command buffers");
             command_buffers.clear();
             for i in 0..swapchain_images.len() {
                 let command_buffer = blit_queue.create_command_buffer()?;
@@ -622,8 +661,6 @@ fn main() -> Result<(),String> {
                 command_buffer.end()?;
                 command_buffers.push(command_buffer);
             }
-
-            dprintln!("rebuilt");
 
             needs_rebuild = false;
         }
@@ -639,6 +676,8 @@ fn main() -> Result<(),String> {
         uniforms.scale = (uniforms.scale * d_scale).clamp(0.00001,10.0);
         uniforms.de_stop = (uniforms.de_stop * d_de_stop).clamp(0.1,10000.0);
         uniforms.escape = (uniforms.escape + d_escape).clamp(1.0,100.0);
+        uniforms.focus = (uniforms.focus + d_focus).clamp(0.0,10.0);
+        uniforms.aperture = (uniforms.aperture + d_aperture).clamp(0.0,1.0);
 
         // print which parameters got updated
         if d_scale != 1.0 {
@@ -650,9 +689,15 @@ fn main() -> Result<(),String> {
         if d_escape != 0.0 {
             println!("escape: {}",uniforms.escape);
         }
+        if d_focus != 0.0 {
+            println!("focus: {}",uniforms.focus);
+        }
+        if d_aperture != 0.0 {
+            println!("aperture: {}",uniforms.aperture);
+        }
 
         // instruct thread to start a new rendering
-        if (delta.x != 0.0) || (delta.y != 0.0) || (d_scale != 1.0) || (d_de_stop != 1.0) || (d_escape != 0.0) || button_pressed {
+        if (delta.x != 0.0) || (delta.y != 0.0) || (d_scale != 1.0) || (d_de_stop != 1.0) || (d_escape != 0.0) || (d_focus != 0.0) || (d_aperture != 0.0) || mode_change || button_pressed {
             if let Err(error) = tx.send(RenderCommand::NewUniforms(uniforms.clone())) {
                 dprintln!("unable to send uniforms to render thread ({})",error);
             }
