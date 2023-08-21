@@ -60,11 +60,11 @@ layout (std140,binding = 0) readonly uniform Uniforms {
     vec4 state_glow_color;        // glow color (a = power)
 };
 
-layout (std140,binding = 1) readonly uniform Interlacing {
+layout (std140,push_constant) readonly uniform Interlacing {
     uint state_interlacing;
 };
 
-layout (binding = 2) writeonly uniform image2D out_frame;
+layout (binding = 1) writeonly uniform image2D out_frame;
 
 // use capital names where f64 would be applicable
 #if 1
@@ -312,7 +312,7 @@ void main() {
         case INTERLACING_RIGHT2X4: px = (ix << 2) + 2; py = iy << 2; break;
         case INTERLACING_BOTTOM2X2: px = ix << 1; py = (iy << 2) + 2; break;
         case INTERLACING_RIGHT1X2: px = (ix << 1) + 1; py = iy << 1; break;
-        case INTERLACING_BOTTOM1X1: py = (iy << 1) + 1; break;
+        case INTERLACING_BOTTOM1X1: px = ix; py = (iy << 1) + 1; break;
     }
 
     // place screen at z=1

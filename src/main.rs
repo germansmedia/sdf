@@ -8,6 +8,7 @@ use {
             mpsc,
             Arc,
         },
+        mem::size_of,
         thread,
     },
 };
@@ -121,7 +122,7 @@ struct Uniforms {
 
 #[repr(C)]
 #[derive(Clone,Copy)]
-struct Uniforms2 {
+struct PushConstants {
     interlacing: Interlacing,
     tbd0: u32,
     tbd1: u32,
@@ -149,12 +150,10 @@ struct Renderer<'a> {
     compute_pipeline: ComputePipeline,
     uniforms: Uniforms,
     uniform_buffer: UniformBuffer,
-    uniforms2: Vec<Uniforms2>,
-    uniform_buffers2: Vec<UniformBuffer>,
     fence: Fence,
     image: Arc<Image>,
     image_view: ImageView,
-    descriptor_sets: Vec<DescriptorSet>,
+    descriptor_set: DescriptorSet,
     command_buffer: CommandBuffer,
     size: Vec2<usize>,
     state: RenderState,
@@ -176,12 +175,11 @@ impl<'a> Renderer<'a> {
         dprintln!("render_thread: creating descriptor set layout");
         let descriptor_set_layout = gpu.create_descriptor_set_layout(&[
             DescriptorBinding::UniformBuffer,
-            DescriptorBinding::UniformBuffer,
             DescriptorBinding::StorageImage,
         ])?;
 
         dprintln!("render_thread: creating pipeline layout");
-        let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout])?;
+        let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<PushConstants>())?;
 
         dprintln!("render_thread: creating compute pipeline");
         let compute_pipeline = gpu.create_compute_pipeline(&pipeline_layout,&compute_shader)?;
@@ -189,40 +187,17 @@ impl<'a> Renderer<'a> {
         dprintln!("render_thread: creating uniform buffer");
         let uniform_buffer = gpu.create_uniform_buffer(&initial_uniforms)?;
 
-        dprintln!("render_thread: creating second uniform buffers");
-        let mut uniforms2 = Vec::<Uniforms2>::new();
-        uniforms2.push(Uniforms2 { interlacing: Interlacing::Full16x16, tbd0: 0, tbd1: 0, tbd2: 0, });
-        uniforms2.push(Uniforms2 { interlacing: Interlacing::Right8x16, tbd0: 0, tbd1: 0, tbd2: 0, });
-        uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom8x8, tbd0: 0, tbd1: 0, tbd2: 0, });
-        uniforms2.push(Uniforms2 { interlacing: Interlacing::Right4x8, tbd0: 0, tbd1: 0, tbd2: 0, });
-        uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom4x4, tbd0: 0, tbd1: 0, tbd2: 0, });
-
-        // why does this crash during creation of descriptor sets?
-        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Right2x4, tbd0: 0, tbd1: 0, tbd2: 0, });
-        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom2x2, tbd0: 0, tbd1: 0, tbd2: 0, });
-        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Right1x2, tbd0: 0, tbd1: 0, tbd2: 0, });
-        //uniforms2.push(Uniforms2 { interlacing: Interlacing::Bottom1x1, tbd0: 0, tbd1: 0, tbd2: 0, });
-
-        let mut uniform_buffers2 = Vec::<UniformBuffer>::new();
-        for uniform2 in uniforms2.iter() {
-            uniform_buffers2.push(gpu.create_uniform_buffer(uniform2)?);
-        }
-
         dprintln!("render_thread: creating fence");
         let fence = gpu.create_fence()?;
 
         dprintln!("render_thread: create image view");
         let image_view = gpu.create_image_view(&image)?;
 
-        dprintln!("render_thread: creating descriptor sets");
-        let mut descriptor_sets = Vec::<DescriptorSet>::new();
-        for uniform_buffer2 in uniform_buffers2.iter() {
-            descriptor_sets.push(gpu.create_descriptor_set(&descriptor_set_layout,&[
-                &Descriptor::UniformBuffer(&uniform_buffer),
-                &Descriptor::UniformBuffer(&uniform_buffer2),
-                &Descriptor::StorageImage(&image_view),
-            ])?);
-        }
+        dprintln!("render_thread: creating descriptor set");
+        let mut descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
+            &Descriptor::UniformBuffer(&uniform_buffer),
+            &Descriptor::StorageImage(&image_view),
+        ])?;
 
         dprintln!("render_thread: creating command buffer");
         let command_buffer = queue.create_command_buffer()?;
@@ -236,12 +211,10 @@ impl<'a> Renderer<'a> {
             compute_pipeline,
             uniforms: initial_uniforms,
             uniform_buffer,
-            uniforms2,
-            uniform_buffers2,
             fence,
             image,
             image_view,
-            descriptor_sets,
+            descriptor_set,
             command_buffer,
             size,
             state: RenderState::Idle,
@@ -264,14 +237,12 @@ impl<'a> Renderer<'a> {
                 self.image = image;
                 self.size = size;
                 self.image_view = self.gpu.create_image_view(&self.image)?;
-                self.descriptor_sets = Vec::<DescriptorSet>::new();
-                for uniform_buffer2 in self.uniform_buffers2.iter() {
-                    self.descriptor_sets.push(self.gpu.create_descriptor_set(&self.descriptor_set_layout,&[
-                        &Descriptor::UniformBuffer(&self.uniform_buffer),
-                        &Descriptor::UniformBuffer(uniform_buffer2),
-                        &Descriptor::StorageImage(&self.image_view),
-                    ])?);
-                }
+                self.descriptor_set = self.gpu.create_descriptor_set(&self.descriptor_set_layout,&[
+                    &Descriptor::UniformBuffer(&self.uniform_buffer),
+                    &Descriptor::StorageImage(&self.image_view),
+                ])?;
+                self.uniforms.size = Vec2 { x: size.x as f32,y: size.y as f32, };
+                self.uniform_buffer.update(&self.uniforms);
                 self.state = RenderState::Rendering(Interlacing::Full16x16,Vec2 { x: self.size.x >> 4,y: self.size.y >> 4, });
             },
 
@@ -291,9 +262,16 @@ impl<'a> Renderer<'a> {
 
             self.command_buffer = self.queue.create_command_buffer()?;
 
+            let constants = PushConstants {
+                interlacing,
+                tbd0: 0,
+                tbd1: 0,
+                tbd2: 0,
+            };
             self.command_buffer.begin()?;
             self.command_buffer.bind_compute_pipeline(&self.compute_pipeline);
-            self.command_buffer.bind_descriptor_set(&self.pipeline_layout,0,&self.descriptor_sets[interlacing as usize])?;
+            self.command_buffer.push_constants(&self.pipeline_layout,&constants);
+            self.command_buffer.bind_descriptor_set(&self.pipeline_layout,0,&self.descriptor_set)?;
             self.command_buffer.dispatch(size.x,size.y,1);
             self.command_buffer.end()?;
     
@@ -306,12 +284,11 @@ impl<'a> Renderer<'a> {
                 Interlacing::Right8x16 => RenderState::Rendering(Interlacing::Bottom8x8,Vec2 { x: self.size.x >> 3,y: self.size.y >> 4, }),
                 Interlacing::Bottom8x8 => RenderState::Rendering(Interlacing::Right4x8,Vec2 { x: self.size.x >> 3,y: self.size.y >> 3, }),
                 Interlacing::Right4x8 => RenderState::Rendering(Interlacing::Bottom4x4,Vec2 { x: self.size.x >> 2,y: self.size.y >> 3, }),
-                //Interlacing::Bottom4x4 => RenderState::Rendering(Interlacing::Right2x4,Vec2 { x: self.size.x >> 2,y: self.size.y >> 2, }),
-                //Interlacing::Right2x4 => RenderState::Rendering(Interlacing::Bottom2x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 2, }),
-                //Interlacing::Bottom2x2 => RenderState::Rendering(Interlacing::Right1x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 1, }),
-                //Interlacing::Right1x2 => RenderState::Rendering(Interlacing::Bottom1x1,Vec2 { x: self.size.x,y: self.size.y >> 1, }),
-                //Interlacing::Bottom1x1 => RenderState::Idle,
-                _ => RenderState::Idle,
+                Interlacing::Bottom4x4 => RenderState::Rendering(Interlacing::Right2x4,Vec2 { x: self.size.x >> 2,y: self.size.y >> 2, }),
+                Interlacing::Right2x4 => RenderState::Rendering(Interlacing::Bottom2x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 2, }),
+                Interlacing::Bottom2x2 => RenderState::Rendering(Interlacing::Right1x2,Vec2 { x: self.size.x >> 1,y: self.size.y >> 1, }),
+                Interlacing::Right1x2 => RenderState::Rendering(Interlacing::Bottom1x1,Vec2 { x: self.size.x,y: self.size.y >> 1, }),
+                Interlacing::Bottom1x1 => RenderState::Idle,
             };
         }
 
