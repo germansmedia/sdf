@@ -13,35 +13,6 @@ use {
     },
 };
 
-const KEY_ARROW_UP: u32 = 111;
-const KEY_ARROW_DOWN: u32 = 116;
-const KEY_ARROW_LEFT: u32 = 113;
-const KEY_ARROW_RIGHT: u32 = 114;
-const KEY_OBRACK: u32 = 34;
-const KEY_CBRACK: u32 = 35;
-const KEY_Q: u32 = 24;
-const KEY_A: u32 = 38;
-const KEY_W: u32 = 25;
-const KEY_S: u32 = 39;
-const KEY_E: u32 = 26;
-const KEY_D: u32 = 40;
-const KEY_R: u32 = 27;
-const KEY_F: u32 = 41;
-const KEY_ESC: u32 = 9;
-const KEY_F1: u32 = 67;
-const KEY_F2: u32 = 68;
-const KEY_F3: u32 = 69;
-const KEY_F4: u32 = 70;
-const KEY_F5: u32 = 71;
-const KEY_F6: u32 = 72;
-const KEY_F7: u32 = 73;
-const KEY_F8: u32 = 74;
-const KEY_F9: u32 = 75;
-const KEY_F10: u32 = 76;
-const KEY_F11: u32 = 95;
-const KEY_F12: u32 = 96;
-
-const FOVY_DEG: f32 = 40.0;
 const FORWARD_SENSITIVITY: f32 = 0.1;
 const STRAFE_SENSITIVITY: f32 = 0.1;
 const POINTER_SENSITIVITY: f32 = 0.001;
@@ -194,7 +165,7 @@ impl<'a> Renderer<'a> {
         let image_view = gpu.create_image_view(&image)?;
 
         dprintln!("render_thread: creating descriptor set");
-        let mut descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
+        let descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
             &Descriptor::UniformBuffer(&uniform_buffer),
             &Descriptor::StorageImage(&image_view),
         ])?;
@@ -300,7 +271,7 @@ fn main() -> Result<(),String> {
 
     let mut size = Vec2 { x: 512usize,y: 512usize, };
 
-    let system = System::open()?;
+    let mut system = System::open()?;
     let frame = system.create_frame(
         Rect {
             o: Vec2 { x: 10i32,y: 10i32, },
@@ -431,167 +402,133 @@ fn main() -> Result<(),String> {
                         needs_rebuild = true;
                     }
                 },
-                Event::Key(event) => {
-                    match event {
-                        KeyEvent::Press { code } => {
-                            match code {
-                                // forward/backward
-                                KEY_ARROW_UP => {
-                                    delta.y = FORWARD_SENSITIVITY * uniforms.scale;
-                                },
-                                KEY_ARROW_DOWN => {
-                                    delta.y = -FORWARD_SENSITIVITY * uniforms.scale;
-                                },
-
-                                // strafing
-                                KEY_ARROW_LEFT => {
-                                    delta.x = -STRAFE_SENSITIVITY * uniforms.scale;
-                                },
-                                KEY_ARROW_RIGHT => {
-                                    delta.x = STRAFE_SENSITIVITY * uniforms.scale;
-                                },
-
-                                // change mode
-                                KEY_F1 => {
-                                    uniforms.mode = VisualizationMode::Output;
-                                    println!("visualization mode: output");
-                                },
-                                KEY_F2 => {
-                                    uniforms.mode = VisualizationMode::Depth;
-                                    println!("visualization mode: depth");
-                                },
-                                KEY_F3 => {
-                                    uniforms.mode = VisualizationMode::Normal;
-                                    println!("visualization mode: normal");
-                                },
-                                KEY_F4 => {
-                                    uniforms.mode = VisualizationMode::DepthRB;
-                                    println!("visualization mode: depth (colored)");
-                                },
-                                KEY_F5 => {
-                                    uniforms.mode = VisualizationMode::IterationsRB;
-                                    println!("visualization mode: iterations");
-                                },
-                                KEY_F6 => {
-                                    uniforms.mode = VisualizationMode::StepsRB;
-                                    println!("visualization mode: march steps");
-                                },
-                                KEY_F7 => {
-                                    uniforms.mode = VisualizationMode::Occlusion;
-                                    println!("visualization mode: occlusion");
-                                },
-                                KEY_F8 => {
-                                    uniforms.mode = VisualizationMode::Debug;
-                                    println!("visualization mode: debug");
-                                },
-
-                                KEY_OBRACK => {
-                                    d_scale = SCALE_FACTOR;
-                                },
-                                KEY_CBRACK => {
-                                    d_scale = 1.0 / SCALE_FACTOR;
-                                },
-
-                                KEY_Q => {
-                                    d_de_stop = DE_STOP_FACTOR;
-                                },
-                                KEY_A => {
-                                    d_de_stop = 1.0 / DE_STOP_FACTOR;
-                                },
-                                KEY_W => {
-                                    d_escape = ESCAPE_FACTOR;
-                                },
-                                KEY_S => {
-                                    d_escape = -ESCAPE_FACTOR;
-                                },
-
-                                /*
-                                KEY_E => {
-                                    params_delta.z = DE_STOP_SENSITIVITY;
-                                },
-                                KEY_D => {
-                                    params_delta.z = 1.0 / DE_STOP_SENSITIVITY;
-                                },
-                                KEY_R => {
-                                    params_delta.w = FACTOR_SENSITIVITY;
-                                },
-                                KEY_F => {
-                                    params_delta.w = 1.0 / FACTOR_SENSITIVITY;
-                                }
-                                */
-
-                                _ => {
-                                    println!("pressed {}",code);
-                                },
-                            }
+                Event::KeyPress(key) => {
+                    match key {
+                        // forward/backward
+                        Key::Up => {
+                            delta.y = FORWARD_SENSITIVITY * uniforms.scale;
                         },
-                        KeyEvent::Release { code } => {
-                            match code {
-
-                                KEY_ESC => {
-                                    is_running = false;
-                                },
-
-                                KEY_ARROW_UP | KEY_ARROW_DOWN => {
-                                    delta.y = 0.0;
-                                },
-                                KEY_ARROW_LEFT | KEY_ARROW_RIGHT => {
-                                    delta.x = 0.0;
-                                },
-
-                                KEY_F1 | KEY_F2 | KEY_F3 | KEY_F4 | KEY_F5 | KEY_F6 | KEY_F7 => { },
-
-                                KEY_OBRACK | KEY_CBRACK => {
-                                    d_scale = 1.0;
-                                },
-
-                                KEY_Q | KEY_A => {
-                                    d_de_stop = 1.0;
-                                },
-                                KEY_W | KEY_S => {
-                                    d_escape = 0.0;
-                                },
-                                /*
-                                KEY_E | KEY_D => {
-                                    params_delta.z = 1.0;
-                                },
-                                KEY_R | KEY_F => {
-                                    params_delta.w = 1.0;
-                                },
-                                */
-
-                                _ => {
-                                    println!("released {}",code);
-                                },
-                            }
+                        Key::Down => {
+                            delta.y = -FORWARD_SENSITIVITY * uniforms.scale;
                         },
-                    }
-                },
-                Event::Pointer(event) => {
-                    match event {
-                        PointerEvent::Down { position,button, } => {
-                            if let Button::Left = button {
-                                button_pressed = true;
-                                prev_position = position;
-                            }
+
+                        // strafing
+                        Key::Left => {
+                            delta.x = -STRAFE_SENSITIVITY * uniforms.scale;
                         },
-                        PointerEvent::Up { position: _,button, } => {
-                            if let Button::Left = button {
-                                button_pressed = false;
-                            }
+                        Key::Right => {
+                            delta.x = STRAFE_SENSITIVITY * uniforms.scale;
                         },
-                        PointerEvent::Move { position,.. } => {
-                            if button_pressed {
-                                let dp = position - prev_position;
-                                dir *= Quaternion::<f32>::from_euler(-POINTER_SENSITIVITY * dp.y,POINTER_SENSITIVITY * dp.x,0.0);
-                                prev_position = position;
-                            }
+
+                        // change mode
+                        Key::F1 => {
+                            uniforms.mode = VisualizationMode::Output;
+                            println!("visualization mode: output");
                         },
+                        Key::F2 => {
+                            uniforms.mode = VisualizationMode::Depth;
+                            println!("visualization mode: depth");
+                        },
+                        Key::F3 => {
+                            uniforms.mode = VisualizationMode::Normal;
+                            println!("visualization mode: normal");
+                        },
+                        Key::F4 => {
+                            uniforms.mode = VisualizationMode::DepthRB;
+                            println!("visualization mode: depth (colored)");
+                        },
+                        Key::F5 => {
+                            uniforms.mode = VisualizationMode::IterationsRB;
+                            println!("visualization mode: iterations");
+                        },
+                        Key::F6 => {
+                            uniforms.mode = VisualizationMode::StepsRB;
+                            println!("visualization mode: march steps");
+                        },
+                        Key::F7 => {
+                            uniforms.mode = VisualizationMode::Occlusion;
+                            println!("visualization mode: occlusion");
+                        },
+                        Key::F8 => {
+                            uniforms.mode = VisualizationMode::Debug;
+                            println!("visualization mode: debug");
+                        },
+
+                        Key::OBracket => {
+                            d_scale = SCALE_FACTOR;
+                        },
+                        Key::CBracket => {
+                            d_scale = 1.0 / SCALE_FACTOR;
+                        },
+
+                        Key::Q => {
+                            d_de_stop = DE_STOP_FACTOR;
+                        },
+                        Key::A => {
+                            d_de_stop = 1.0 / DE_STOP_FACTOR;
+                        },
+                        Key::W => {
+                            d_escape = ESCAPE_FACTOR;
+                        },
+                        Key::S => {
+                            d_escape = -ESCAPE_FACTOR;
+                        },
+
                         _ => {
-                            println!("pointer event: {}",event);
-                        }
+                            println!("pressed {}",key);
+                        },
                     }
                 },
+                Event::KeyRelease(key) => {
+                    match key {
+                        Key::Escape => {
+                            is_running = false;
+                        },
+
+                        Key::Up | Key::Down => {
+                            delta.y = 0.0;
+                        },
+                        Key::Left | Key::Right => {
+                            delta.x = 0.0;
+                        },
+
+                        Key::F1 | Key::F2 | Key::F3 | Key::F4 | Key::F5 | Key::F6 | Key::F7 => { },
+
+                        Key::OBracket | Key::CBracket => {
+                            d_scale = 1.0;
+                        },
+
+                        Key::Q | Key::A => {
+                            d_de_stop = 1.0;
+                        },
+                        Key::W | Key::S => {
+                            d_escape = 0.0;
+                        },
+
+                        _ => {
+                            println!("released {}",key);
+                        },
+                    }
+                },
+                Event::MousePress(pos,button) => {
+                    if let Button::Left = button {
+                        button_pressed = true;
+                        prev_position = Vec2 { x: pos.x as f32,y: pos.y as f32, };
+                    }
+                },
+                Event::MouseRelease(_,button) => {
+                    if let Button::Left = button {
+                        button_pressed = false;
+                    }
+                },
+                Event::MouseMove(pos) =>  {
+                    if button_pressed {
+                        let fpos = Vec2 { x: pos.x as f32,y: pos.y as f32, };
+                        let dp = fpos - prev_position;
+                        dir *= Quaternion::<f32>::from_euler(-POINTER_SENSITIVITY * dp.y,POINTER_SENSITIVITY * dp.x,0.0);
+                        prev_position = fpos;
+                    }
+                }
                 _ => { },
             }
         });
