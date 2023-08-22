@@ -135,12 +135,12 @@ FLOAT query_distance(VEC3 p,out uint i) {
     //mandelbox(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
-    rotate4d(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    //mandelbox(v,dr,p);
+    //rotate4d(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
+    mandelbox(v,dr,p);
+    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
+    i++;
     //rotate4d(v,dr,p);
     //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
     //i++;
@@ -167,7 +167,7 @@ FLOAT query_distance(VEC3 p,out uint i) {
 #endif
 
 VEC3 query_normal(VEC3 p,FLOAT pixel_area) {
-    FLOAT h = pixel_area * state_scale;
+    FLOAT h = 0.01 * state_scale;
     vec2 k = vec2(1,-1);
     uint i;
     return normalize(
@@ -216,9 +216,9 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
 
     // march that ray
     FLOAT r = 0.0;
-    FLOAT closest = state_scale * state_horizon;
+    FLOAT closest = state_horizon;
     bool hit = false;
-    for(steps = 0; (steps < state_max_steps) && (r < state_scale * state_horizon); steps++) {
+    for(steps = 0; (steps < state_max_steps) && (r < state_horizon); steps++) {
         FLOAT de = query_distance(p + r * dp,iterations);
         r += de;
         if (iterations > state_max_iterations) {
@@ -242,7 +242,7 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
     if (hit) {
 
         // prepare final depth value
-        depth = clamp(float(r) / (state_scale * state_horizon),0.0,1.0);
+        depth = clamp(float(r) / state_horizon,0.0,1.0);
 
         // p is now the point of contact
         p += r * dp;
@@ -266,7 +266,7 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
 
         // soft shadow from sky light
         //vec3 dsky_light = vec3(0.0,1.0,0.0);
-        //float sky_shadow_att = shadow_attenuation(p,dsky_light,state_scale * state_horizon,pixel_area * r);
+        //float sky_shadow_att = shadow_attenuation(p,dsky_light,state_horizon,pixel_area * r);
 
         // sky light
         float sky_light = clamp(0.5 - 0.5 * float(n.y),0.0,1.0);

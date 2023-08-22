@@ -444,142 +444,99 @@ fn main() -> Result<(),String> {
                         needs_rebuild = true;
                     }
                 },
-                Event::Key(event) => {
-                    match event {
-                        KeyEvent::Press { code } => {
-                            match code {
-                                // forward/backward
-                                KEY_ARROW_UP => {
-                                    delta.y = FORWARD_SENSITIVITY * uniforms.scale;
-                                },
-                                KEY_ARROW_DOWN => {
-                                    delta.y = -FORWARD_SENSITIVITY * uniforms.scale;
-                                },
-
-                                // strafing
-                                KEY_ARROW_LEFT => {
-                                    delta.x = -STRAFE_SENSITIVITY * uniforms.scale;
-                                },
-                                KEY_ARROW_RIGHT => {
-                                    delta.x = STRAFE_SENSITIVITY * uniforms.scale;
-                                },
-
-                                // change mode
-                                KEY_F1 => {
-                                    uniforms.mode = VisualizationMode::Output;
-                                    mode_change = true;
-                                    println!("visualization mode: output");
-                                },
-                                KEY_F2 => {
-                                    uniforms.mode = VisualizationMode::Depth;
-                                    mode_change = true;
-                                    println!("visualization mode: depth");
-                                },
-                                KEY_F3 => {
-                                    uniforms.mode = VisualizationMode::Normal;
-                                    mode_change = true;
-                                    println!("visualization mode: normal");
-                                },
-                                KEY_F4 => {
-                                    uniforms.mode = VisualizationMode::DepthRB;
-                                    mode_change = true;
-                                    println!("visualization mode: depth (colored)");
-                                },
-                                KEY_F5 => {
-                                    uniforms.mode = VisualizationMode::IterationsRB;
-                                    mode_change = true;
-                                    println!("visualization mode: iterations");
-                                },
-                                KEY_F6 => {
-                                    uniforms.mode = VisualizationMode::StepsRB;
-                                    mode_change = true;
-                                    println!("visualization mode: march steps");
-                                },
-                                KEY_F7 => {
-                                    uniforms.mode = VisualizationMode::Occlusion;
-                                    mode_change = true;
-                                    println!("visualization mode: occlusion");
-                                },
-                                KEY_F8 => {
-                                    uniforms.mode = VisualizationMode::Debug;
-                                    mode_change = true;
-                                    println!("visualization mode: debug");
-                                },
-
-                                KEY_OBRACK => {
-                                    d_scale = 1.0 / SCALE_FACTOR;
-                                },
-                                KEY_CBRACK => {
-                                    d_scale = SCALE_FACTOR;
-                                },
-
-                                KEY_Q => {
-                                    d_de_stop = DE_STOP_FACTOR;
-                                },
-                                KEY_A => {
-                                    d_de_stop = 1.0 / DE_STOP_FACTOR;
-                                },
-                                KEY_W => {
-                                    d_escape = ESCAPE_FACTOR;
-                                },
-                                KEY_S => {
-                                    d_escape = -ESCAPE_FACTOR;
-                                },
-                                KEY_E => {
-                                    d_focus = FOCUS_FACTOR;
-                                },
-                                KEY_D => {
-                                    d_focus = -FOCUS_FACTOR;
-                                },
-                                KEY_R => {
-                                    d_aperture = APERTURE_FACTOR;
-                                },
-                                KEY_F => {
-                                    d_aperture = -APERTURE_FACTOR;
-                                }
-
-                                _ => {
-                                    println!("pressed {}",code);
-                                },
-                            }
+                Event::KeyPress(key) => {
+                    match key {
+                        Key::Up => {
+                            delta.y = FORWARD_SENSITIVITY * uniforms.scale;
                         },
-                        KeyEvent::Release { code } => {
-                            match code {
+                        Key::Down => {
+                            delta.y = -FORWARD_SENSITIVITY * uniforms.scale;
+                        },
 
-                                KEY_ESC => {
-                                    is_running = false;
-                                },
+                        // strafing
+                        Key::Left => {
+                            delta.x = -STRAFE_SENSITIVITY * uniforms.scale;
+                        },
+                        Key::Right => {
+                            delta.x = STRAFE_SENSITIVITY * uniforms.scale;
+                        },
 
-                                KEY_ARROW_UP | KEY_ARROW_DOWN => {
-                                    delta.y = 0.0;
-                                },
-                                KEY_ARROW_LEFT | KEY_ARROW_RIGHT => {
-                                    delta.x = 0.0;
-                                },
+                        // change mode
+                        Key::F1 => {
+                            uniforms.mode = VisualizationMode::Output;
+                            mode_change = true;
+                            println!("visualization mode: output");
+                        },
+                        Key::F2 => {
+                            uniforms.mode = VisualizationMode::Depth;
+                            mode_change = true;
+                            println!("visualization mode: depth");
+                        },
+                        Key::F3 => {
+                            uniforms.mode = VisualizationMode::Normal;
+                            mode_change = true;
+                            println!("visualization mode: normal");
+                        },
+                        Key::F4 => {
+                            uniforms.mode = VisualizationMode::DepthRB;
+                            mode_change = true;
+                            println!("visualization mode: depth (colored)");
+                        },
+                        Key::F5 => {
+                            uniforms.mode = VisualizationMode::IterationsRB;
+                            mode_change = true;
+                            println!("visualization mode: iterations");
+                        },
+                        Key::F6 => {
+                            uniforms.mode = VisualizationMode::StepsRB;
+                            mode_change = true;
+                            println!("visualization mode: march steps");
+                        },
+                        Key::F7 => {
+                            uniforms.mode = VisualizationMode::Occlusion;
+                            mode_change = true;
+                            println!("visualization mode: occlusion");
+                        },
+                        Key::F8 => {
+                            uniforms.mode = VisualizationMode::Debug;
+                            mode_change = true;
+                            println!("visualization mode: debug");
+                        },
 
-                                KEY_F1 | KEY_F2 | KEY_F3 | KEY_F4 | KEY_F5 | KEY_F6 | KEY_F7 => { },
+                        Key::OBracket => {
+                            d_scale = 1.0 / SCALE_FACTOR;
+                        },
+                        Key::CBracket => {
+                            d_scale = SCALE_FACTOR;
+                        },
 
-                                KEY_OBRACK | KEY_CBRACK => {
-                                    d_scale = 1.0;
-                                },
+                        Key::Q => {
+                            d_de_stop = DE_STOP_FACTOR;
+                        },
+                        Key::A => {
+                            d_de_stop = 1.0 / DE_STOP_FACTOR;
+                        },
+                        Key::W => {
+                            d_escape = ESCAPE_FACTOR;
+                        },
+                        Key::S => {
+                            d_escape = -ESCAPE_FACTOR;
+                        },
+                        Key::E => {
+                            d_focus = FOCUS_FACTOR;
+                        },
+                        Key::D => {
+                            d_focus = -FOCUS_FACTOR;
+                        },
+                        Key::R => {
+                            d_aperture = APERTURE_FACTOR;
+                        },
+                        Key::F => {
+                            d_aperture = -APERTURE_FACTOR;
+                        }
 
-                                KEY_Q | KEY_A => {
-                                    d_de_stop = 1.0;
-                                },
-                                KEY_W | KEY_S => {
-                                    d_escape = 0.0;
-                                },
-                                KEY_E | KEY_D => {
-                                    d_focus = 0.0;
-                                },
-                                KEY_R | KEY_F => {
-                                    d_aperture = 0.0;
-                                },
-
-                                _ => {
-                                    println!("released {}",code);
-                                },
-                            }
+                        _ => {
+                            println!("pressed {}",key);
                         },
                     }
                 },
