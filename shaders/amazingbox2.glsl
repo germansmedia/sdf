@@ -21,7 +21,6 @@ void amazingbox2(inout VEC3 v,inout FLOAT dr,VEC3 c) {
     v = abs(v -AMAZING_FOLD) + v - abs(v + AMAZING_FOLD) + AMAZING_I;
 
     FLOAT r2 = dot(v,v);
-    FLOAT q = 0.0;
     if (r2 < AMAZING_MINR2) {
         FLOAT t = 1.0 / AMAZING_MINR2;
         v *= t;
