@@ -87,6 +87,7 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #include "amazingbox2.glsl"
 #include "amazingsurf.glsl"
 //#include "polyfoldsym.glsl"
+#include "bulboxp2.glsl"
 
 #if 0
 // MandelBulb
@@ -110,6 +111,12 @@ FLOAT query_distance(VEC3 p,out uint i) {
 }
 #endif
 
+
+#define ITERATE(formula) \
+formula(v,dr,p); \
+r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr); \
+i++;
+
 // Julius:
 #if 1
 FLOAT query_distance(VEC3 p,out uint i) {
@@ -117,36 +124,16 @@ FLOAT query_distance(VEC3 p,out uint i) {
     FLOAT dr = 1.0;
     FLOAT r = length(v);
     i = 0;
-    //rotate4d(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
-    //kochcube(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
-    //polyfoldsym(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
-    reciprocalz3b(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    //rotate4d(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
-    //mandelbox(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
-    //rotate4d(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
-    mandelbox(v,dr,p);
-    r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    i++;
-    //rotate4d(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
-    //mandelbox(v,dr,p);
-    //r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr);
-    //i++;
+    //ITERATE(rotate4d)
+    //ITERATE(kochcube)
+    //ITERATE(polyfoldsym)
+    //ITERATE(reciprocalz3b)
+    //ITERATE(rotate4d)
+    //ITERATE(mandelbox)
+    //ITERATE(rotate4d)
+    //ITERATE(mandelbox)
+    //ITERATE(rotate4d)
+    //ITERATE(mandelbox)
     for (; (r < state_escape) && (i < state_max_iterations); i++) {
         amazingsurf(v,dr,p);
         r = length(v);
@@ -210,6 +197,10 @@ float shadow_attenuation(VEC3 p,VEC3 dp,FLOAT de_stop_mul,FLOAT r_max) {
         closest = min(closest,de / r);
     }
     return clamp(state_shadow_power.a * float(closest),0.0,1.0);
+}
+
+vec3 palette(float t) {
+    return state_colors[0].rgb + state_colors[1].rgb * cos(6.28318 * (state_colors[2].rgb + state_colors[3].rgb));
 }
 
 vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out float depth,out uint iterations,out uint steps,out bool debug) {
@@ -282,7 +273,7 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
 
         // apply light and fog to this pixel
         float fog = clamp(state_background_color.a * depth,0.0,1.0);
-        pixel = mix(state_colors[iterations & 15].rgb * diff,pixel,fog);
+        pixel = mix(palette(0.1 * float(iterations)) * diff,pixel,fog);
         //pixel = state_colors[iterations & 15].rgb * diff;
         //pixel = mix(vec3(0.3,0.3,0.3) * diff,pixel,fog);
     }

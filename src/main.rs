@@ -348,10 +348,12 @@ fn main() -> Result<(),String> {
         de_stop: 500.0,
         tbd1: 0.0,
         colors: [
-            Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
-            Vec4 { x: 0.3,y: 0.3,z: 0.3, w: 1.0, },
-            Vec4 { x: 0.3,y: 0.2,z: 0.2, w: 1.0, },
-            Vec4 { x: 0.3,y: 0.1,z: 0.1, w: 1.0, },
+            // uses the first 4 colors:
+            Vec4 { x: 0.5,y: 0.5,z: 0.5, w: 1.0, },
+            Vec4 { x: 0.5,y: 0.5,z: 0.5, w: 1.0, },
+            Vec4 { x: 1.0,y: 1.0,z: 1.0, w: 1.0, },
+            Vec4 { x: 0.0,y: 0.1,z: 0.2, w: 1.0, },
+
             Vec4 { x: 0.3,y: 0.0,z: 0.0, w: 1.0, },
             Vec4 { x: 0.3,y: 0.1,z: 0.0, w: 1.0, },
             Vec4 { x: 0.3,y: 0.2,z: 0.0, w: 1.0, },
@@ -370,7 +372,7 @@ fn main() -> Result<(),String> {
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
         sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 0.8, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
-        background_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },  // background color
+        background_color: Vec4 { x: 0.0,y: 0.1,z: 0.2,w: 1.0, },  // background color
         glow_color: Vec4 { x: 0.2,y: 0.2,z: 0.2,w: 0.1, },        // glow color (a = power)
     };
 
