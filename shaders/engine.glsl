@@ -64,6 +64,8 @@ layout (std140,push_constant) readonly uniform PushConstants {
 
 layout (binding = 1) writeonly uniform image2D out_frame;
 
+layout (binding = 2) readonly uniform image2D in_face;
+
 // use capital names where f64 would be applicable
 #if 1
 #define FLOAT float
@@ -134,8 +136,12 @@ FLOAT query_distance(VEC3 p,out uint i) {
     //ITERATE(mandelbox)
     //ITERATE(rotate4d)
     //ITERATE(mandelbox)
+    ITERATE(amazingsurf)
+    ITERATE(amazingsurf)
+    ITERATE(amazingsurf)
+    ITERATE(amazingsurf)
     for (; (r < state_escape) && (i < state_max_iterations); i++) {
-        amazingsurf(v,dr,p);
+        kochcube(v,dr,p);
         r = length(v);
     }
     return r / abs(dr);
@@ -152,6 +158,10 @@ FLOAT query_distance(VEC3 p,out uint i) {
     return r / abs(dr);
 }
 #endif
+
+FLOAT query_distance_face(VEC3,out uint i) {
+    
+}
 
 VEC3 query_normal(VEC3 p,FLOAT pixel_area) {
     FLOAT h = 0.01 * state_scale;
