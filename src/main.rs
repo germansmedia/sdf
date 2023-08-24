@@ -661,15 +661,22 @@ fn main() -> Result<(),String> {
         // only draw if a command buffer exists
         if command_buffers.len() > 0 {
             fence.reset()?;
-            let index = surface.acquire(&fence)?;
-            fence.wait()?;
-            fence.reset()?;
-            blit_queue.submit(&command_buffers[index],None,Some(&semaphore),Some(&fence))?;
-            fence.wait()?;
-            if let Err(error) = surface.present(&blit_queue,index,Some(&semaphore)) {
-                dprintln!("presentation error: {}",error);
-                needs_rebuild = true;
-            }
+            match surface.acquire(&fence) {
+                Err(error) => {
+                    dprintln!("error acquiring frame: {}",error);
+                    needs_rebuild = true;
+                },
+                Ok(index) => {
+                    fence.wait()?;
+                    fence.reset()?;
+                    blit_queue.submit(&command_buffers[index],None,Some(&semaphore),Some(&fence))?;
+                    fence.wait()?;
+                    if let Err(error) = surface.present(&blit_queue,index,Some(&semaphore)) {
+                        dprintln!("presentation error: {}",error);
+                        needs_rebuild = true;
+                    }        
+                },
+            };
         }
     }
 
