@@ -11,7 +11,7 @@
 #define ROTATE4D_CZW 1.0
 #define ROTATE4D_SZW 0.0
 
-void rotate4d(inout VEC3 v,inout FLOAT dr,VEC3 c) {
+void rotate4d(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT m) {
     // for this particular test, effectively we're only mirroring Y and Z axes
     v.y = -v.y;
     v.z = -v.z;

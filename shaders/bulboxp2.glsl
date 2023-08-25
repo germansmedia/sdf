@@ -6,7 +6,7 @@
 #define BULBOX_INNER_R 0.6
 #define BULBOX_INNER_ZMUL 1.0
 
-void bulboxp2(inout VEC3 v,inout FLOAT dr,VEC3 c) {
+void bulboxp2(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT m) {
     v = abs(v + VEC3(BULBOX_FOLD)) - abs(v - VEC3(BULBOX_FOLD)) + v;
     FLOAT rr = dot(v,v);
     FLOAT r = sqrt(rr);

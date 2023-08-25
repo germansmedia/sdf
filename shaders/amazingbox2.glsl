@@ -14,7 +14,7 @@
 #define AMAZING_RADIUS 1.0
 */
 
-void amazingbox2(inout VEC3 v,inout FLOAT dr,VEC3 c) {
+void amazingbox2(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT m) {
 
     // TODO: rotation
 

@@ -15,7 +15,7 @@
 #define KOCH_STRETCH 0.1234
 #define KOCH_ADD VEC3(0.0,0.0,0.0)
 
-void kochcube(inout VEC3 v,inout FLOAT dr,VEC3 c) {
+void kochcube(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT m) {
 
     v.x = 3.0 * abs(v.x);
     v.y = 3.0 * abs(v.y);

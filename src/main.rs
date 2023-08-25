@@ -99,7 +99,7 @@ struct Uniforms {
     horizon: f32,                  // furthest distance to view
     escape: f32,                   // fractal iteration escape value
     de_stop: f32,                  // closest approach to the fractal
-    tbd1: f32,
+    step_mul: f32,                 // multiplier to prevent undersampling
 
     colors: [Vec4<f32>; 16],       // primary color table
 
@@ -346,7 +346,7 @@ fn main() -> Result<(),String> {
         horizon: 100.0,
         escape: 40.0,
         de_stop: 500.0,
-        tbd1: 0.0,
+        step_mul: 0.1,
         colors: [
             // uses the first 4 colors:
             Vec4 { x: 0.5,y: 0.5,z: 0.5, w: 1.0, },

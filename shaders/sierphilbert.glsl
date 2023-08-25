@@ -2,7 +2,7 @@
 #define SIERP_EDGE1 2
 #define SIERP_EDGE2 1
 
-void sierphilbert(inout VEC3 v,inout FLOAT dr,VEC3 c) {
+void sierphilbert(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT m) {
 
     // v = rotation1 * v;
 

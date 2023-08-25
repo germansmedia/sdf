@@ -1,6 +1,6 @@
 #define Z_MULTIPLIER 1.0
 
-void cosine_pow2(inout VEC3 v,inout VEC3 dr,VEC3 c) {
+void cosine_pow2(inout VEC3 v,inout VEC3 dr,VEC3 c,inout FLOAT m) {
     FLOAT q = 2 * v.z / sqrt(v.x * v.x + v.y * v.y);
     v = VEC3(
         (v.y * v.y - v.x * v.x) * q,

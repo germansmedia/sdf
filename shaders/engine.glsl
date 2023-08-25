@@ -37,7 +37,7 @@ layout (std140,binding = 0) readonly uniform Uniforms {
     float state_horizon;          // furthest distance to view
     float state_escape;           // fractal iteration escape value
     float state_de_stop;          // closest approach to the fractal
-    float tbd1;
+    float state_step_mul;         // multiplier to prevent undersampling
 
     vec4 state_colors[16];        // primary color table
 
@@ -80,6 +80,7 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 #include "base.glsl"
 #include "menger3.glsl"
 #include "mandelbox.glsl"
+#include "mandelbulb.glsl"
 #include "kochcube.glsl"
 #include "sierphilbert.glsl"
 #include "reciprocalz3b.glsl"
@@ -89,7 +90,7 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 //#include "polyfoldsym.glsl"
 #include "bulboxp2.glsl"
 
-#if 0
+/*
 // MandelBulb
 FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 v = p;
@@ -109,55 +110,38 @@ FLOAT query_distance(VEC3 p,out uint i) {
     }
     return 0.5 * log(r) * r / dr;  // this is different from 'regular' ones
 }
-#endif
-
-
-void sphere(inout VEC3 v,inout FLOAT dr,VEC3 c) {
-    //dr = 2.0;
-}
-
+*/
 
 #define ITERATE(formula) \
-formula(v,dr,p); \
-r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return r / abs(dr); \
+formula(v,dr,p,m); \
+r = length(v); if ((r >= state_escape) || (i > state_max_iterations)) return (m * r) / abs(dr); \
 i++;
 
-// Julius:
-#if 1
 FLOAT query_distance(VEC3 p,out uint i) {
     VEC3 v = p;
     FLOAT dr = 1.0;
     FLOAT r = length(v);
+    FLOAT m = 1.0;
     i = 0;
     //ITERATE(rotate4d)
     //ITERATE(kochcube)
     //ITERATE(polyfoldsym)
     ITERATE(reciprocalz3b)
+    ITERATE(menger3)
+    ITERATE(menger3)
     //ITERATE(rotate4d)
     //ITERATE(mandelbox)
     //ITERATE(rotate4d)
     //ITERATE(mandelbox)
     //ITERATE(rotate4d)
-    ITERATE(mandelbox)
+    //ITERATE(mandelbox)
     //ITERATE(amazingsurf)
     for (; (r < state_escape) && (i <= state_max_iterations); i++) {
-        kochcube(v,dr,p);
+        mandelbulb(v,dr,p,m);
         r = length(v);        
     }
-    return r / abs(dr);
+    return (m * r) / abs(dr);
 }
-#else
-FLOAT query_distance(VEC3 p,out uint i) {
-    VEC3 v = p;
-    FLOAT dr = 1.0;
-    FLOAT r = length(v);
-    for (i = 0; (r < state_escape) && (i < state_max_iterations); i++) {
-        kochcube(v,dr,p);
-        r = length(v);
-    }
-    return r / abs(dr);
-}
-#endif
 
 VEC3 query_normal(VEC3 p,FLOAT pixel_area) {
     FLOAT h = 0.01 * state_scale;
@@ -217,12 +201,7 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
     bool hit = false;
     for(steps = 0; (steps < state_max_steps) && (r < state_horizon); steps++) {
         FLOAT de = query_distance(p + r * dp,iterations);
-        r += de;
-        if (iterations > state_max_iterations) {
-            r -= 0.5 * de;
-            de = query_distance(p + r * dp,iterations);
-            debug = true;
-        }
+        r += state_step_mul * de;
         if ((de < state_de_stop * pixel_area) || (iterations > state_max_iterations)) {
             closest = 0.0;
             hit = true;

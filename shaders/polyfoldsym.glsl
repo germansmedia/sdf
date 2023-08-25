@@ -1,6 +1,6 @@
 #define POLY_ORDER 64.0
 
-void polyfoldsym(inout VEC3 v,inout FLOAT dr,VEC3 c) {
+void polyfoldsym(inout VEC3 v,inout FLOAT dr,VEC3 c,inout FLOAT m) {
     FLOAT t = POLY_ORDER * atan(v.y,v.x);
     int it = int(t);
     FLOAT a = -FLOAT(it) * 3.1415927 / (180.0 * POLY_ORDER);
