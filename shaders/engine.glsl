@@ -209,21 +209,58 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
             hit = true;
             break;
         }
+        else {
+
+        }
+
         closest = min(closest,de);
 
 
 /* and then something like this happens:
 
 
-// msDEsub = min(0.9,sZstepDiv), 0.0 seems like a good value
-// msDEstop = max(0.001,sDEStop)
-// sZstepDiv = 
-// RSFmul =
+// msDEsub = min(0.9,sZstepDiv), 0.0 seems like a good value, otherwise see sZstepDiv
+// msDEstop = max(0.001,sDEStop), 0.17 seems reasonable
+// sDEstop = 0.2..3.2, 0.17 seems reasonable
+// sZstepDiv = max(0.0001,mZstepDiv), start with 0.5, 0.1 for more precise, 0.9 for less precise
+// mZstepDiv = 2.2 / (i + 0.25 * Sqr(i)), where i = DE accuracy between 2 and 16, in file at pos 182, fixed to 0.5 in preview renderer, 0.93 .. 0.13 when you fill in 2..15
+// RSFmul = 0.5 .. 1.0 if DE < 1.0, otherwise RSFmul = 1.0
 // mctMH04ZSD = 0.5 * max(width,height) * sqrt(sZstepDiv + 0.0001) * max(0.01,sRaystepLimiter)
+// sRaystepLimiter = 1.0 .. what's in the file
 // mctDEstopFactor = might be in the state, 0.0 seems like a good value
 // RLastDE = 
 // RLastStepWidth =
 // mZZ = depth (we call this r)
+
+
+
+let last_de = de;
+de = max(0.11,0.5 * de);
+dt1 = 141
+if de < dt1 {
+    de = dt1;
+}
+let rlaststepwidth = de;
+r += de;
+c += de * mvgradsfov;
+msdestop = destop;
+de = query_distance();
+if de > last_de + rlaststepwidth {
+    de = last_de = rlaststepwidth;
+}
+if last_de > (de + 1e-30) {
+    de = rlaststepwidth / (last_de - de);
+    if de < 1 {
+        rsfmul = max(0.5,de);
+    }
+    else {
+        rsfmul = 1.0;
+    }
+}
+else {
+    rsfmul = 1.0;
+}
+
 
 
 // save DE to RLastDE
