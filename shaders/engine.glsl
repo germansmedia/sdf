@@ -65,7 +65,7 @@ layout (std140,push_constant) readonly uniform PushConstants {
 layout (binding = 1) writeonly uniform image2D out_frame;
 
 // use capital names where f64 would be applicable
-#if 1
+#if 0
 #define FLOAT float
 #define VEC3 vec3
 #define VEC4 vec4
@@ -126,9 +126,9 @@ FLOAT query_distance(VEC3 p,out uint i) {
     //ITERATE(rotate4d)
     //ITERATE(kochcube)
     //ITERATE(polyfoldsym)
-    ITERATE(reciprocalz3b)
-    ITERATE(menger3)
-    ITERATE(menger3)
+    //ITERATE(reciprocalz3b)
+    //ITERATE(menger3)
+    //ITERATE(menger3)
     //ITERATE(rotate4d)
     //ITERATE(mandelbox)
     //ITERATE(rotate4d)
@@ -137,7 +137,7 @@ FLOAT query_distance(VEC3 p,out uint i) {
     //ITERATE(mandelbox)
     //ITERATE(amazingsurf)
     for (; (r < state_escape) && (i <= state_max_iterations); i++) {
-        mandelbulb(v,dr,p,m);
+        amazingsurf(v,dr,p,m);
         r = length(v);        
     }
     return (m * r) / abs(dr);
@@ -201,13 +201,83 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
     bool hit = false;
     for(steps = 0; (steps < state_max_steps) && (r < state_horizon); steps++) {
         FLOAT de = query_distance(p + r * dp,iterations);
+
         r += state_step_mul * de;
-        if ((de < state_de_stop * pixel_area) || (iterations > state_max_iterations)) {
+
+        if ((de < state_de_stop * r * pixel_area) || (iterations > state_max_iterations)) {
             closest = 0.0;
             hit = true;
             break;
         }
         closest = min(closest,de);
+
+
+/* and then something like this happens:
+
+
+// msDEsub = min(0.9,sZstepDiv), 0.0 seems like a good value
+// msDEstop = max(0.001,sDEStop)
+// sZstepDiv = 
+// RSFmul =
+// mctMH04ZSD = 0.5 * max(width,height) * sqrt(sZstepDiv + 0.0001) * max(0.01,sRaystepLimiter)
+// mctDEstopFactor = might be in the state, 0.0 seems like a good value
+// RLastDE = 
+// RLastStepWidth =
+// mZZ = depth (we call this r)
+
+
+// save DE to RLastDE
+RLastDE := dTmp;
+
+// calculate (dTmp - msDEsub * msDEstop) * sZstepDiv * RSFmul, but at least 0.11
+dTmp := MaxCS(s011, (dTmp - msDEsub * msDEstop) * sZstepDiv * RSFmul);
+
+// calculate msDEstop, but at least 0.4, times mctMH04ZSD
+dT1 := MaxCS(msDEstop, 0.4) * mctMH04ZSD;
+
+// if the found DE as processed into dTmp is larger than this adjusted msDEstop
+if dT1 < dTmp then begin
+
+    // adjust fog step count according to difference
+    if DFogOnIt = 0 then StepCount := StepCount + dT1 / dTmp
+    else if pIt3Dext.ItResultI = DFogOnIt then StepCount := StepCount + dT1 / dTmp;
+
+    // and make DE equal to this adjusted msDEstop
+    dTmp := dT1;
+
+end
+
+// otherwise, adjust fog step
+else if DFogOnIt = 0 then StepCount := StepCount + 1 else if pIt3Dext.ItResultI = DFogOnIt then StepCount := StepCount + 1;
+
+// save this new DE to RLastStepWidth
+RLastStepWidth := dTmp;
+
+// update depth
+mZZ := mZZ + dTmp;
+
+// update C to account for some effect parallel to the camera
+mAddVecWeight(@pIt3Dext.C1, @mVgradsFOV, dTmp);
+
+// calculate the new msDEstop
+msDEstop := DEstop * (1 + mZZ * mctDEstopFactor);
+
+// sample DE at this new location
+dTmp := CalcDE(pIt3Dext, MCTparas);
+
+// if this made DE grow, forget it
+if dTmp > RLastDE + RLastStepWidth then dTmp := RLastDE + RLastStepWidth;
+
+// if RLastDE is larger than a tiny bit more than dTmp
+if RLastDE > dTmp + s1em30 then begin
+
+    // adjust RSFmul a tiny little bit
+    dT1 := RLastStepWidth / (RLastDE - dTmp);
+    if dT1 < 1 then RSFmul := maxCS(s05 , dT1) else RSFmul := 1;
+
+end else RSFmul := 1;
+*/
+
     }
     
     // start with background and glow
@@ -224,7 +294,7 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
         p += r * dp;
 
         // calculate normal at p
-        n = query_normal(p,pixel_area);
+        n = query_normal(p,r * pixel_area);
 
         // cheap ambient occlusion
         occlusion = 1.0 - clamp(float(steps) / float(state_max_steps),0.0,1.0);
@@ -251,15 +321,16 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
         float gi_light = 0.1;
 
         // combine lighting
-        vec3 diff = key_light * state_key_light_color.rgb * pow(vec3(key_shadow_att),state_shadow_power.rgb);
+        //vec3 diff = key_light * state_key_light_color.rgb * pow(vec3(key_shadow_att),state_shadow_power.rgb);
+        vec3 diff = key_light * state_key_light_color.rgb;
         //diff += sky_light * state_sky_light_color.rgb * pow(vec3(sky_shadow_att),state_shadow_power.rgb);
         diff += sky_light * state_sky_light_color.rgb * occlusion;
         diff += gi_light * state_gi_light_color.rgb * occlusion;
 
         // apply light and fog to this pixel
         float fog = clamp(state_background_color.a * depth,0.0,1.0);
-        pixel = mix(palette(0.1 * float(iterations)) * diff,pixel,fog);
-        //pixel = state_colors[iterations & 15].rgb * diff;
+        //pixel = mix(palette(float(iterations)) * diff,pixel,fog);
+        pixel = mix(state_colors[iterations & 15].rgb * diff,pixel,fog);
         //pixel = mix(vec3(0.3,0.3,0.3) * diff,pixel,fog);
     }
 
@@ -359,7 +430,7 @@ void main() {
         case MODE_DEPTH: c = vec3(1.0 - depth); break;
         case MODE_NORMAL: c = vec3(0.5) + 0.5 * vec3(n); break;
         case MODE_DEPTH_RB: c = rainbow(1.0 - depth); break;
-        case MODE_ITERATIONS_RB: c = rainbow(clamp(0.05 * float(iterations),0.0,1.0)); break;
+        case MODE_ITERATIONS_RB: c = rainbow(clamp(0.1 * float(iterations),0.0,1.0)); break;
         case MODE_STEPS_RB: c = rainbow(clamp(0.05 * float(steps),0.0,1.0)); break;
         case MODE_OCCLUSION_RB: c = rainbow(1.0 - occlusion); break;
         case MODE_DEBUG: c = debug ? vec3(1.0) : vec3(0.0); break;

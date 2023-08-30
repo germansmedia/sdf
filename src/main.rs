@@ -335,25 +335,23 @@ fn main() -> Result<(),String> {
     let mut dir = Quaternion::<f32>::ONE;
     let mut uniforms = Uniforms {
         view: Mat4x4::<f32>::from_mv(Mat3x3::from(dir),pos),
-        fovy: 72.0.to_radians(),
+        fovy: 45.0.to_radians(),
         scale: 1.0,
         focus: 2.0,
         aperture: 0.01,
         mode: VisualizationMode::Output,
-        max_steps: 1000,
-        max_iterations: 120,
+        max_steps: 5000,
+        max_iterations: 60,
         tbd0: 0,
         horizon: 100.0,
-        escape: 40.0,
-        de_stop: 500.0,
-        step_mul: 0.1,
+        escape: 20.0,
+        de_stop: 100.0,
+        step_mul: 1.0,
         colors: [
-            // uses the first 4 colors:
-            Vec4 { x: 0.5,y: 0.5,z: 0.5, w: 1.0, },
-            Vec4 { x: 0.5,y: 0.5,z: 0.5, w: 1.0, },
-            Vec4 { x: 1.0,y: 1.0,z: 1.0, w: 1.0, },
-            Vec4 { x: 0.0,y: 0.1,z: 0.2, w: 1.0, },
-
+            Vec4 { x: 0.2,y: 0.2,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.1,y: 0.1,z: 0.3, w: 1.0, },
+            Vec4 { x: 0.1,y: 0.0,z: 0.2, w: 1.0, },
+            Vec4 { x: 0.2,y: 0.0,z: 0.1, w: 1.0, },
             Vec4 { x: 0.3,y: 0.0,z: 0.0, w: 1.0, },
             Vec4 { x: 0.3,y: 0.1,z: 0.0, w: 1.0, },
             Vec4 { x: 0.3,y: 0.2,z: 0.0, w: 1.0, },
@@ -367,7 +365,7 @@ fn main() -> Result<(),String> {
             Vec4 { x: 0.0,y: 0.0,z: 0.3, w: 1.0, },
             Vec4 { x: 0.0,y: 0.0,z: 0.2, w: 1.0, },
         ],
-        key_light_pos: Vec4 { x: -20.0,y: -30.0,z: -10.0, w: 1.0, },  // somewhere above the origin
+        key_light_pos: Vec4 { x: -10.0,y: -20.0,z: -40.0, w: 1.0, },  // somewhere above the origin
         key_light_color: Vec4 { x: 1.64,y: 1.47,z: 0.99, w: 1.0, },  // very bright yellow
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
         sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 0.8, },   // sky light color (a = fog strength)
