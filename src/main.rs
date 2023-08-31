@@ -340,12 +340,12 @@ fn main() -> Result<(),String> {
         focus: 2.0,
         aperture: 0.01,
         mode: VisualizationMode::Output,
-        max_steps: 5000,
+        max_steps: 1000,
         max_iterations: 60,
         tbd0: 0,
-        horizon: 100.0,
+        horizon: 500.0,
         escape: 20.0,
-        de_stop: 100.0,
+        de_stop: 0.01,
         step_mul: 1.0,
         colors: [
             Vec4 { x: 0.2,y: 0.2,z: 0.3, w: 1.0, },
@@ -553,7 +553,7 @@ fn main() -> Result<(),String> {
                             delta.x = 0.0;
                         },
 
-                        Key::F1 | Key::F2 | Key::F3 | Key::F4 | Key::F5 | Key::F6 | Key::F7 => { },
+                        Key::F1 | Key::F2 | Key::F3 | Key::F4 | Key::F5 | Key::F6 | Key::F7 | Key::F8 => { },
 
                         Key::OBracket | Key::CBracket => {
                             d_scale = 1.0;
@@ -627,7 +627,7 @@ fn main() -> Result<(),String> {
 
         // process parameter updates
         uniforms.scale = (uniforms.scale * d_scale).clamp(0.00001,10.0);
-        uniforms.de_stop = (uniforms.de_stop * d_de_stop).clamp(0.1,10000.0);
+        uniforms.de_stop = (uniforms.de_stop * d_de_stop).clamp(0.001,10.0);
         uniforms.escape = (uniforms.escape + d_escape).clamp(1.0,100.0);
         uniforms.focus = (uniforms.focus + d_focus).clamp(0.0,10.0);
         uniforms.aperture = (uniforms.aperture + d_aperture).clamp(0.0,1.0);

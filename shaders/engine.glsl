@@ -193,8 +193,91 @@ vec3 palette(float t) {
     return state_colors[0].rgb + state_colors[1].rgb * cos(6.28318 * (state_colors[2].rgb + state_colors[3].rgb));
 }
 
-vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out float depth,out uint iterations,out uint steps,out bool debug) {
+#define DE_STOP_FACTOR 0.1
+#define MH04ZSD 1.0
 
+vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out float depth,out uint iterations,out float steps,out float debug) {
+
+    // march that ray
+    FLOAT closest = state_horizon;
+    steps = 0.0;
+    FLOAT r = 0.0;
+    FLOAT de_stop = state_de_stop;
+    bool hit = false;
+    VEC3 c = p;
+    FLOAT magnifier = 1.0;
+
+    // estimate distance
+    FLOAT de = query_distance(c,iterations);
+
+    // early escape    
+    if ((iterations > state_max_iterations) || (de < de_stop)) {
+        hit = true;
+    }
+
+    else {
+        FLOAT variation = de * state_step_mul;
+        while (r < state_horizon) {
+
+            // "half a step back"
+            if (iterations > state_max_iterations) {
+                FLOAT h = -0.5 * variation;
+                r += h;
+                c += h * dp;
+                de_stop = state_de_stop * (1.0 + DE_STOP_FACTOR * r);
+                de = query_distance(c,iterations);
+                variation = -h;
+            }
+
+            // hit test
+            if ((iterations > state_max_iterations) || (de < de_stop)) {
+                closest = 0.0;
+                hit = true;
+                break;
+            }
+
+            // "cap DE and step size"
+            FLOAT last_de = de;
+            //de = max(0.11,de * state_step_mul * magnifier);
+            de = max(0.11,de * magnifier);
+            FLOAT max_de = max(0.4,de_stop) * MH04ZSD;  // some constant related to resolution
+            if (de > max_de) {
+                steps += float(max_de / de);
+                de = max_de;
+            }
+            else {
+                steps += 1.0;
+            }
+            variation = de;
+
+            // march
+            r += de;
+            c += de * dp;
+            de_stop = state_de_stop * (1.0 + DE_STOP_FACTOR * r);
+
+            // new distance estimation
+            de = query_distance(c,iterations);
+
+            // "only make smaller steps each time"
+            if (de > last_de + variation) {
+                de = last_de + variation;
+            }
+
+            // "adjust magnifier"
+            //if (de + 1.0e-30 < last_de) {
+            //    magnifier = clamp(variation / (last_de - de),0.5,1.0);
+            //}
+            //else {
+            //    magnifier = 1.0;
+            //}
+
+            // keep closest distance
+            closest = min(closest,de);
+        }
+    }
+
+    debug = float(10.0 * de_stop);
+/*
     // march that ray
     FLOAT r = 0.0;
     FLOAT closest = state_horizon;
@@ -215,7 +298,8 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
 
         closest = min(closest,de);
     }
-    
+*/
+
     // start with background and glow
     float glow = 1.0 - clamp(pow(float(closest),state_glow_color.a),0.0,1.0);
     vec3 pixel = state_background_color.rgb + glow * state_glow_color.rgb;
@@ -227,10 +311,11 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
         depth = clamp(float(r) / state_horizon,0.0,1.0);
 
         // p is now the point of contact
-        p += r * dp;
+        //p += r * dp;
+        p = c;
 
         // calculate normal at p
-        n = query_normal(p,r * pixel_area);
+        n = query_normal(p,r * pixel_area * magnifier);
 
         // cheap ambient occlusion
         occlusion = 1.0 - clamp(float(steps) / float(state_max_steps),0.0,1.0);
@@ -240,7 +325,7 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
         FLOAT r_max = length(dkey_light);
         dkey_light = normalize(dkey_light);
         //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,scaled_pixel_area);
-        float key_shadow_att = shadow_attenuation(p,dkey_light,pixel_area,r_max);
+        //float key_shadow_att = shadow_attenuation(p,dkey_light,pixel_area,r_max);
         //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,0.001);
 
         // diffuse key light
@@ -310,8 +395,8 @@ void main() {
     float occlusion = 1.0;
     float depth = 1.0;
     uint iterations = 0;
-    uint steps = 0;
-    bool debug = false;
+    float steps = 0.0;
+    float debug = 0.0;
 
     // depth-of-field
     #if 0
@@ -367,9 +452,9 @@ void main() {
         case MODE_NORMAL: c = vec3(0.5) + 0.5 * vec3(n); break;
         case MODE_DEPTH_RB: c = rainbow(1.0 - depth); break;
         case MODE_ITERATIONS_RB: c = rainbow(clamp(0.1 * float(iterations),0.0,1.0)); break;
-        case MODE_STEPS_RB: c = rainbow(clamp(0.05 * float(steps),0.0,1.0)); break;
+        case MODE_STEPS_RB: c = rainbow(clamp(0.1 * steps,0.0,1.0)); break;
         case MODE_OCCLUSION_RB: c = rainbow(1.0 - occlusion); break;
-        case MODE_DEBUG: c = debug ? vec3(1.0) : vec3(0.0); break;
+        case MODE_DEBUG: c = rainbow(debug); break;
     }
 
     // and draw
