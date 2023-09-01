@@ -22,6 +22,7 @@ const DE_STOP_FACTOR: f32 = 1.01;
 const ESCAPE_FACTOR: f32 = 0.1;
 const FOCUS_FACTOR: f32 = 0.001;
 const APERTURE_FACTOR: f32 = 0.001;
+const MH04ZSD_FACTOR: f32 = 1.01;
 
 const DESMOND9_FULL16X16: (u32,u32) = (0,0);
 const DESMOND9_RIGHT8X16: (u32,u32) = (8,8);
@@ -101,6 +102,11 @@ struct Uniforms {
     de_stop: f32,                  // closest approach to the fractal
     step_mul: f32,                 // multiplier to prevent undersampling
 
+    de_stop_factor: f32,           // from mb3d
+    mh04zsd: f32,                  // from mb3d
+    tbd1: f32,
+    tbd2: f32,
+
     colors: [Vec4<f32>; 16],       // primary color table
 
     key_light_pos: Vec4<f32>,      // key light position
@@ -138,8 +144,8 @@ enum RenderState {
     Exiting,
 }
 
-struct Renderer<'a> {
-    gpu: &'a Gpu,
+struct Renderer {
+    gpu: Arc<Gpu>,
     queue: Queue,
     descriptor_set_layout: DescriptorSetLayout,
     pipeline_layout: PipelineLayout,
@@ -156,30 +162,41 @@ struct Renderer<'a> {
     state: RenderState,
 }
 
-impl<'a> Renderer<'a> {
+impl Renderer {
 
-    fn new(gpu: &'a Gpu,image: Arc<Image>,size: Vec2<usize>,initial_uniforms: Uniforms) -> Result<Renderer,String> {
+    fn new(gpu: Arc<Gpu>,initial_image: Arc<Image>,initial_size: Vec2<usize>,initial_uniforms: Uniforms) -> Result<Renderer,String> {
 
+        // request render queue
         let queue = gpu.get_queue(1)?;
 
+        // load compute shader
         let mut f = File::open("shaders/engine.spirv").expect("unable to open compute shader");
         let mut code = Vec::<u8>::new();
         f.read_to_end(&mut code).expect("unable to read compute shader");
         let compute_shader = gpu.create_compute_shader(&code)?;
 
+        // prepare pipeline
         let descriptor_set_layout = gpu.create_descriptor_set_layout(&[
             DescriptorBinding::UniformBuffer,
             DescriptorBinding::StorageImage,
         ])?;
         let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<PushConstants>())?;
         let compute_pipeline = gpu.create_compute_pipeline(&pipeline_layout,&compute_shader)?;
+
+        // prepare uniform buffer
         let uniform_buffer = gpu.create_uniform_buffer(&initial_uniforms)?;
-        let fence = gpu.create_fence()?;
-        let image_view = gpu.create_image_view(&image)?;
+
+        // prepare initial image view
+        let image_view = gpu.create_image_view(&initial_image)?;
+
+        // prepare descriptor set
         let descriptor_set = gpu.create_descriptor_set(&descriptor_set_layout,&[
             &Descriptor::UniformBuffer(&uniform_buffer),
             &Descriptor::StorageImage(&image_view),
         ])?;
+
+        // fence and command buffer
+        let fence = gpu.create_fence()?;
         let command_buffer = queue.create_command_buffer()?;
 
         Ok(Renderer {
@@ -192,11 +209,11 @@ impl<'a> Renderer<'a> {
             uniforms: initial_uniforms,
             uniform_buffer,
             fence,
-            image,
+            image: initial_image,
             image_view,
             descriptor_set,
             command_buffer,
-            size,
+            size: initial_size,
             state: RenderState::Idle,
         })
     }
@@ -205,23 +222,38 @@ impl<'a> Renderer<'a> {
 
         match command {
 
+            // receive new uniforms from main thread
             RenderCommand::NewUniforms(new_uniforms) => {
+
+                // update uniforms
                 self.uniforms = new_uniforms;
                 self.uniform_buffer.update(&self.uniforms);
+
+                // restart progressive rendering
                 self.state = RenderState::Rendering(Progressive::Full16x16,0);
             },
 
+            // receive new image and configuration size
             RenderCommand::NewImage(image,size) => {
+
+                // update image and size
                 self.image = image;
                 self.size = size;
+
+                // recreate image view for this new image (drops old one)
                 self.image_view = self.gpu.create_image_view(&self.image)?;
+
+                // recreate descriptor set (drops old one)
                 self.descriptor_set = self.gpu.create_descriptor_set(&self.descriptor_set_layout,&[
                     &Descriptor::UniformBuffer(&self.uniform_buffer),
                     &Descriptor::StorageImage(&self.image_view),
                 ])?;
+
+                // restart progressive rendering
                 self.state = RenderState::Rendering(Progressive::Full16x16,0);
             },
 
+            // laterr...
             RenderCommand::Exit => {
                 self.state = RenderState::Exiting;
             }
@@ -232,9 +264,13 @@ impl<'a> Renderer<'a> {
 
     fn render(&mut self) -> Result<(),String> {
 
+        // if we're rendering
         if let RenderState::Rendering(progressive,pass) = self.state {
 
+            // create new command buffer (drops old one)
             self.command_buffer = self.queue.create_command_buffer()?;
+
+            // prepare pixel offset inside 16x16 tile
             let offset = match progressive {
                 Progressive::Full16x16 => DESMOND9_FULL16X16,
                 Progressive::Right8x16 => DESMOND9_RIGHT8X16,
@@ -246,11 +282,15 @@ impl<'a> Renderer<'a> {
                 Progressive::Right1x2 => DESMOND9_RIGHT1X2[pass],
                 Progressive::Bottom1x1 => DESMOND9_BOTTOM1X1[pass],
             };
+
+            // prepare constants for pushing via command buffer
             let constants = PushConstants {
                 size: Vec2 { x: self.size.x as f32,y: self.size.y as f32, },
                 progressive,
                 offset: (offset.1 << 4) | offset.0,
             };
+
+            // prepare command buffer
             self.command_buffer.begin()?;
             self.command_buffer.bind_compute_pipeline(&self.compute_pipeline);
             self.command_buffer.push_constants(&self.pipeline_layout,&constants);
@@ -258,10 +298,12 @@ impl<'a> Renderer<'a> {
             self.command_buffer.dispatch(self.size.x >> 4,self.size.y >> 4,1);
             self.command_buffer.end()?;
     
+            // render
             self.fence.reset()?;
             self.queue.submit(&self.command_buffer,None,None,Some(&self.fence))?;
             self.fence.wait()?;
     
+            // go to next progressive state
             self.state = match progressive {
                 Progressive::Full16x16 => RenderState::Rendering(Progressive::Right8x16,0),
                 Progressive::Right8x16 => RenderState::Rendering(Progressive::Bottom8x8,0),
@@ -343,10 +385,14 @@ fn main() -> Result<(),String> {
         max_steps: 1000,
         max_iterations: 60,
         tbd0: 0,
-        horizon: 500.0,
+        horizon: 50.0,
         escape: 20.0,
-        de_stop: 0.01,
+        de_stop: 0.0001,
         step_mul: 1.0,
+        de_stop_factor: 10.0,
+        mh04zsd: 0.1,
+        tbd1: 0.0,
+        tbd2: 0.0,
         colors: [
             Vec4 { x: 0.2,y: 0.2,z: 0.3, w: 1.0, },
             Vec4 { x: 0.1,y: 0.1,z: 0.3, w: 1.0, },
@@ -368,10 +414,10 @@ fn main() -> Result<(),String> {
         key_light_pos: Vec4 { x: -10.0,y: -20.0,z: -40.0, w: 1.0, },  // somewhere above the origin
         key_light_color: Vec4 { x: 1.64,y: 1.47,z: 0.99, w: 1.0, },  // very bright yellow
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow power (a = sharpness)
-        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 0.8, },   // sky light color (a = fog strength)
+        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },   // sky light color (a = fog strength)
         gi_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },    // ambient light color
         background_color: Vec4 { x: 0.0,y: 0.1,z: 0.2,w: 1.0, },  // background color
-        glow_color: Vec4 { x: 0.2,y: 0.2,z: 0.2,w: 0.1, },        // glow color (a = power)
+        glow_color: Vec4 { x: 0.2,y: 0.2,z: 0.2,w: 0.4, },        // glow color (a = power)
     };
 
     let (tx,rx) = mpsc::channel();
@@ -381,7 +427,7 @@ fn main() -> Result<(),String> {
     let render_uniforms = uniforms.clone();
     let render_thread = thread::spawn(move || {
         if let Err(error) = {
-            let mut renderer = Renderer::new(&render_gpu,render_image,render_size,render_uniforms)?;
+            let mut renderer = Renderer::new(render_gpu,render_image,render_size,render_uniforms)?;
             loop {
                 match renderer.state {
                     RenderState::Idle => {
@@ -426,6 +472,8 @@ fn main() -> Result<(),String> {
     let mut d_escape = 0.0;
     let mut d_focus = 0.0;
     let mut d_aperture = 0.0;
+    let mut d_de_stop_factor = 1.0;
+    let mut d_mh04zsd = 1.0;
 
     let mut needs_rebuild = true;
     let mut is_running = true;
@@ -533,7 +581,19 @@ fn main() -> Result<(),String> {
                         },
                         Key::F => {
                             d_aperture = -APERTURE_FACTOR;
-                        }
+                        },
+                        Key::T => {
+                            d_de_stop_factor = DE_STOP_FACTOR;
+                        },
+                        Key::G => {
+                            d_de_stop_factor = 1.0 / DE_STOP_FACTOR;
+                        },
+                        Key::Y => {
+                            d_mh04zsd = MH04ZSD_FACTOR;
+                        },
+                        Key::H => {
+                            d_mh04zsd = 1.0 / MH04ZSD_FACTOR;
+                        },
 
                         _ => {
                             println!("pressed {}",key);
@@ -564,6 +624,18 @@ fn main() -> Result<(),String> {
                         },
                         Key::W | Key::S => {
                             d_escape = 0.0;
+                        },
+                        Key::E | Key::D => {
+                            d_focus = 0.0;
+                        },
+                        Key::R | Key::F => {
+                            d_aperture = 0.0;
+                        },
+                        Key::T | Key::G => {
+                            d_de_stop_factor = 1.0;
+                        },
+                        Key::Y | Key::H => {
+                            d_mh04zsd = 1.0;
                         },
 
                         _ => {
@@ -627,10 +699,12 @@ fn main() -> Result<(),String> {
 
         // process parameter updates
         uniforms.scale = (uniforms.scale * d_scale).clamp(0.00001,10.0);
-        uniforms.de_stop = (uniforms.de_stop * d_de_stop).clamp(0.001,10.0);
+        uniforms.de_stop = (uniforms.de_stop * d_de_stop).clamp(0.00001,10.0);
         uniforms.escape = (uniforms.escape + d_escape).clamp(1.0,100.0);
         uniforms.focus = (uniforms.focus + d_focus).clamp(0.0,10.0);
         uniforms.aperture = (uniforms.aperture + d_aperture).clamp(0.0,1.0);
+        uniforms.de_stop_factor = (uniforms.de_stop_factor * d_de_stop_factor).clamp(0.01,1000.0);
+        uniforms.mh04zsd = (uniforms.mh04zsd * d_mh04zsd).clamp(0.0001,100.0);
 
         // print which parameters got updated
         if d_scale != 1.0 {
@@ -648,9 +722,25 @@ fn main() -> Result<(),String> {
         if d_aperture != 0.0 {
             println!("aperture: {}",uniforms.aperture);
         }
+        if d_de_stop_factor != 1.0 {
+            println!("de_stop_factor: {}",uniforms.de_stop_factor);
+        }
+        if d_mh04zsd != 1.0 {
+            println!("mh04zsd: {}",uniforms.mh04zsd);
+        }
 
         // instruct thread to start a new rendering
-        if (delta.x != 0.0) || (delta.y != 0.0) || (d_scale != 1.0) || (d_de_stop != 1.0) || (d_escape != 0.0) || (d_focus != 0.0) || (d_aperture != 0.0) || mode_change || button_pressed {
+        if (delta.x != 0.0) ||
+            (delta.y != 0.0) ||
+            (d_scale != 1.0) ||
+            (d_de_stop != 1.0) ||
+            (d_escape != 0.0) ||
+            (d_focus != 0.0) ||
+            (d_aperture != 0.0) ||
+            (d_de_stop_factor != 1.0) ||
+            (d_mh04zsd != 1.0) ||
+            mode_change ||
+            button_pressed {
             if let Err(error) = tx.send(RenderCommand::NewUniforms(uniforms.clone())) {
                 dprintln!("unable to send uniforms to render thread ({})",error);
             }

@@ -39,6 +39,11 @@ layout (std140,binding = 0) readonly uniform Uniforms {
     float state_de_stop;          // closest approach to the fractal
     float state_step_mul;         // multiplier to prevent undersampling
 
+    float state_de_stop_factor;   // from mb3d
+    float state_mh04zsd;          // from mb3d
+    float tbd1;
+    float tbd2;
+
     vec4 state_colors[16];        // primary color table
 
     vec4 state_key_light_pos;     // key light position
@@ -66,15 +71,15 @@ layout (binding = 1) writeonly uniform image2D out_frame;
 
 // use capital names where f64 would be applicable
 #if 0
-#define FLOAT float
-#define VEC3 vec3
-#define VEC4 vec4
-#define MAT3 mat3
-#else
 #define FLOAT double
 #define VEC3 dvec3
 #define VEC4 dvec4
 #define MAT3 dmat3
+#else
+#define FLOAT float
+#define VEC3 vec3
+#define VEC4 vec4
+#define MAT3 mat3
 #endif
 
 #include "base.glsl"
@@ -136,15 +141,18 @@ FLOAT query_distance(VEC3 p,out uint i) {
     //ITERATE(rotate4d)
     //ITERATE(mandelbox)
     //ITERATE(amazingsurf)
+    //ITERATE(amazingsurf)
+    //ITERATE(amazingsurf)
+    //ITERATE(amazingsurf)
+    ITERATE(mandelbulb)
     for (; (r < state_escape) && (i <= state_max_iterations); i++) {
-        amazingsurf(v,dr,p,m);
+        menger3(v,dr,p,m);
         r = length(v);        
     }
     return (m * r) / abs(dr);
 }
 
-VEC3 query_normal(VEC3 p,FLOAT pixel_area) {
-    FLOAT h = 0.01 * state_scale;
+VEC3 query_normal(VEC3 p,FLOAT h) {
     vec2 k = vec2(1,-1);
     uint i;
     return normalize(
@@ -193,9 +201,6 @@ vec3 palette(float t) {
     return state_colors[0].rgb + state_colors[1].rgb * cos(6.28318 * (state_colors[2].rgb + state_colors[3].rgb));
 }
 
-#define DE_STOP_FACTOR 0.1
-#define MH04ZSD 1.0
-
 vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out float depth,out uint iterations,out float steps,out float debug) {
 
     // march that ray
@@ -224,7 +229,8 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
                 FLOAT h = -0.5 * variation;
                 r += h;
                 c += h * dp;
-                de_stop = state_de_stop * (1.0 + DE_STOP_FACTOR * r);
+                de_stop = state_de_stop * (1.0 + state_de_stop_factor * r);
+                //de_stop = state_de_stop;
                 de = query_distance(c,iterations);
                 variation = -h;
             }
@@ -236,11 +242,12 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
                 break;
             }
 
-            // "cap DE and step size"
             FLOAT last_de = de;
+            // "cap DE and step size"
+            /*
             //de = max(0.11,de * state_step_mul * magnifier);
             de = max(0.11,de * magnifier);
-            FLOAT max_de = max(0.4,de_stop) * MH04ZSD;  // some constant related to resolution
+            FLOAT max_de = max(0.4,de_stop) * state_mh04zsd;  // some constant related to resolution
             if (de > max_de) {
                 steps += float(max_de / de);
                 de = max_de;
@@ -248,12 +255,13 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
             else {
                 steps += 1.0;
             }
-            variation = de;
+            variation = de;*/
 
             // march
             r += de;
             c += de * dp;
-            de_stop = state_de_stop * (1.0 + DE_STOP_FACTOR * r);
+            de_stop = state_de_stop * (1.0 + state_de_stop_factor * r);
+            //de_stop = state_de_stop;
 
             // new distance estimation
             de = query_distance(c,iterations);
@@ -264,12 +272,12 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
             }
 
             // "adjust magnifier"
-            //if (de + 1.0e-30 < last_de) {
-            //    magnifier = clamp(variation / (last_de - de),0.5,1.0);
-            //}
-            //else {
-            //    magnifier = 1.0;
-            //}
+            if (de + 1.0e-30 < last_de) {
+                magnifier = clamp(variation / (last_de - de),0.5,1.0);
+            }
+            else {
+                magnifier = 1.0;
+            }
 
             // keep closest distance
             closest = min(closest,de);
@@ -308,14 +316,14 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
     if (hit) {
 
         // prepare final depth value
-        depth = clamp(float(r) / state_horizon,0.0,1.0);
+        depth = clamp(float(r) / (state_scale * state_horizon),0.0,1.0);
 
         // p is now the point of contact
         //p += r * dp;
         p = c;
 
         // calculate normal at p
-        n = query_normal(p,r * pixel_area * magnifier);
+        n = query_normal(p,10.0 * r * pixel_area * magnifier);
 
         // cheap ambient occlusion
         occlusion = 1.0 - clamp(float(steps) / float(state_max_steps),0.0,1.0);
@@ -325,7 +333,7 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
         FLOAT r_max = length(dkey_light);
         dkey_light = normalize(dkey_light);
         //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,scaled_pixel_area);
-        //float key_shadow_att = shadow_attenuation(p,dkey_light,pixel_area,r_max);
+        float key_shadow_att = shadow_attenuation(p,dkey_light,pixel_area * magnifier,r_max);
         //float key_shadow_att = shadow_attenuation(p,dkey_light,r_max,0.001);
 
         // diffuse key light
@@ -342,8 +350,8 @@ vec3 march(VEC3 p,VEC3 dp,FLOAT pixel_area,out VEC3 n,out float occlusion,out fl
         float gi_light = 0.1;
 
         // combine lighting
-        //vec3 diff = key_light * state_key_light_color.rgb * pow(vec3(key_shadow_att),state_shadow_power.rgb);
-        vec3 diff = key_light * state_key_light_color.rgb;
+        vec3 diff = key_light * state_key_light_color.rgb * pow(vec3(key_shadow_att),state_shadow_power.rgb);
+        //vec3 diff = key_light * state_key_light_color.rgb;
         //diff += sky_light * state_sky_light_color.rgb * pow(vec3(sky_shadow_att),state_shadow_power.rgb);
         diff += sky_light * state_sky_light_color.rgb * occlusion;
         diff += gi_light * state_gi_light_color.rgb * occlusion;
@@ -451,7 +459,7 @@ void main() {
         case MODE_DEPTH: c = vec3(1.0 - depth); break;
         case MODE_NORMAL: c = vec3(0.5) + 0.5 * vec3(n); break;
         case MODE_DEPTH_RB: c = rainbow(1.0 - depth); break;
-        case MODE_ITERATIONS_RB: c = rainbow(clamp(0.1 * float(iterations),0.0,1.0)); break;
+        case MODE_ITERATIONS_RB: c = rainbow(clamp(0.05 * float(iterations),0.0,1.0)); break;
         case MODE_STEPS_RB: c = rainbow(clamp(0.1 * steps,0.0,1.0)); break;
         case MODE_OCCLUSION_RB: c = rainbow(1.0 - occlusion); break;
         case MODE_DEBUG: c = rainbow(debug); break;
