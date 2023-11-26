@@ -1,4 +1,3 @@
 # TODO
 
-- BRDF, attached to iterations
-- 
+- migrate from NXR example to here

@@ -16,4 +16,5 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-e = { path = "../e" }
+nxr = { path = "../nxr" }
+macros = { path = "../nxr/macros" }
