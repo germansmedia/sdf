@@ -60,11 +60,11 @@ fn main() -> Result<(),String> {
     let mut march = March {
         pose: pose.into(),  // pose in fractal space
         scale: 1.0,  // rendering/lighting scale
-        horizon: 100.0,  // maximum distance
+        horizon: 20.0,  // maximum distance
         escape: 20.0,  // escape distance
         de_stop: 0.0001,  // "de_stop"
         de_stop_factor: 10.0,  // "de_stop_factor"
-        max_steps: 500,  // maximum number of path trace steps per ray
+        max_steps: 500,  // maximum number of path trace steps
         max_iterations: 20,  // maximum number of iteractions
         tbd0: 0,
     };

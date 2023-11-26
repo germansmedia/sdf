@@ -46,19 +46,25 @@ const PHASE_BOTTOM1X1: [(u32,u32); 128] = [
 #[repr(u32)]
 pub enum ViewType {
     Quad,
+    StereoQuad,
     Cube,
+    StereoCube,
     Cylinder,
+    StereoCylinder,
     Equirect,
+    StereoEquirect,
     Fisheye,
+    StereoFisheye,
 }
 
 #[derive(Clone,Copy,Debug)]
 #[repr(C)]
 pub struct ViewConfig {
+    width: u32,
+    height: u32,
     type_: ViewType,
-    stereo: u32,
+    tbd0: u32,
     fov: Fov<f32>,
-    extent: Vec2<u32>,
 }
 
 #[derive(Clone,Copy,Debug)]
@@ -225,25 +231,28 @@ impl Engine {
         let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<Push>())?;
 
         // create uniform buffers
-        let depth_occlusion_uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[DepthOcclusionUniforms {
+        let uniforms = DepthOcclusionUniforms {
             view: ViewConfig {
-                type_: ViewType::Equirect,
-                stereo: 1,
+                width: size.x as u32,
+                height: size.y as u32,
+                type_: ViewType::StereoEquirect,
+                tbd0: 0,
                 fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
-                extent: size.into(),
             },
             progress: Progress {
                 phase: Phase::Full16x16,
                 offset: Vec2::ZERO,
             },
             march,
-        }]))?;
+        };
+        let depth_occlusion_uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[uniforms]))?;
         let lighting_uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[LightingUniforms {
             view: ViewConfig {
-                type_: ViewType::Equirect,
-                stereo: 1,
+                width: size.x as u32,
+                height: size.y as u32,
+                type_: ViewType::StereoEquirect,
+                tbd0: 0,
                 fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
-                extent: size.into(),
             },
             progress: Progress {
                 phase: Phase::Full16x16,
@@ -416,10 +425,11 @@ impl Engine {
                 Stage::DepthOcclusion => {
                     self.depth_occlusion_uniform_buffer.data_mut()?[0] = DepthOcclusionUniforms {
                         view: ViewConfig {
-                            type_: ViewType::Equirect,
-                            stereo: 1,
+                            width: self.rgba_image.size().x as u32,
+                            height: self.rgba_image.size().y as u32,
+                            type_: ViewType::StereoEquirect,
+                            tbd0: 0,
                             fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
-                            extent: self.rgba_image.size().into(),
                         },
                         progress: Progress {
                             phase,
@@ -446,10 +456,11 @@ impl Engine {
                 Stage::Lighting => {
                     self.lighting_uniform_buffer.data_mut()?[0] = LightingUniforms {
                         view: ViewConfig {
-                            type_: ViewType::Equirect,
-                            stereo: 1,
+                            width: self.rgba_image.size().x as u32,
+                            height: self.rgba_image.size().y as u32,
+                            type_: ViewType::StereoEquirect,
+                            tbd0: 0,
                             fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
-                            extent: self.rgba_image.size().into(),
                         },
                         progress: Progress {
                             phase,

@@ -3,25 +3,12 @@
 
 #version 450
 
-#include "viewconfig.glsl"
+layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
+
 #include "progress.glsl"
 #include "march.glsl"
 
-layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
-
-layout (std140,push_constant) readonly uniform Push {
-    uint eye;
-    uint face;
-    uint anisotropy;
-    uint y_offset;
-} push;
-
-layout (std140,binding = 0) readonly uniform Uniforms {
-    ViewConfig view;
-    Progress progress;
-    // formula params
-    March march;
-} uniforms;
+// 0 = uniforms, see base.glsl
 
 layout (binding = 1) writeonly uniform image2D do_image;
 
@@ -32,11 +19,11 @@ void main() {
     // get block specification
     ivec2 b;  // upper-left corner of block
     vec2 c;  // center of pixel in upper-left corner of block
-    get_block_spec(push.anisotropy,push.y_offset,uniforms.view,uniforms.progress,b,c);
+    get_block_spec(b,c);
 
     // calculate view direction that 
-    float t = 2.0 * PI * c.x;
-    float f = PI - PI * c.y;
+    float t = 2.0 * PI * c.x / float(uniforms.view.width);
+    float f = PI - PI * c.y / float(uniforms.view.height);
     float x = -sin(f) * sin(t);
     float y = -cos(f);
     float z = sin(f) * cos(t);
@@ -59,13 +46,10 @@ void main() {
     }
 
     // march the ray
-    vec2 depth_occlusion = process_depth_occlusion(uniforms.march,origin,dir);
+    vec2 depth_occlusion = process_depth_occlusion(origin,dir);
 
     // draw depth-occlusion block
     draw_block(
-        uniforms.view,
-        push.anisotropy,
-        uniforms.progress,
         do_image,
         b,
         vec4(depth_occlusion,0.0,0.0)
@@ -73,11 +57,15 @@ void main() {
 
     // draw grey RGBA preview
     draw_block(
-        uniforms.view,
-        push.anisotropy,
-        uniforms.progress,
         rgba_image,
         b,
-        vec4(depth_occlusion.y * vec3(0.8),1.0)
+        vec4(
+            clamp(float(depth_occlusion.x) / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0),
+            0.5 + 0.5 * y,
+            0.5 + 0.5 * z,
+            //depth_occlusion.y,
+            //0.0,
+            1.0
+        )
     );
 }
