@@ -21,7 +21,7 @@ float consult(in vec3 p,inout uint iterations) {
 
 // march a single ray
 bool march_ray(
-    inout vec3 p,  // ray start and end
+    in vec3 p,  // ray start
     in vec3 dp,  // march direction
     out float r,  // distance to object
     out uint steps  // how many steps were taken
@@ -31,10 +31,9 @@ bool march_ray(
     float de_stop = uniforms.march.de_stop;
     bool hit = false;
     uint iterations = 0;
-    r = 0.0;
     float de = consult(p,iterations);
-    if ((iterations > uniforms.march.max_iterations) || (de < uniforms.march.de_stop)) {
-        r = de;
+    r = de;
+    if ((iterations > uniforms.march.max_iterations) || (de < de_stop)) {
         return true;
     }
     else {
@@ -48,12 +47,11 @@ bool march_ray(
                 de = consult(p,iterations);
                 variation = -h;
             }
+            r += de;
             if ((iterations > uniforms.march.max_iterations) || (de < de_stop)) {
-                r = 0.0;
                 return true;
             }
             float last_de = de;
-            r += de;
             p += de * dp;
             de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
             de = consult(p,iterations);
@@ -64,7 +62,7 @@ bool march_ray(
             steps += 1;
         }
     }
-    r = closest;
+    r = de;
     return false;
 }
 
@@ -89,6 +87,6 @@ vec2 process_depth_occlusion(vec3 p,vec3 dp) {
         return vec2(r,occlusion);
     }
     else {
-        return vec2(uniforms.march.horizon,1.0);
+        return vec2(uniforms.march.horizon,-1.0);
     }
 }

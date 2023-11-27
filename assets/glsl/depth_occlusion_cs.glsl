@@ -30,14 +30,14 @@ void main() {
 
     // transform by pose matrix
     vec3 origin = (uniforms.march.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
-    vec3 view = (uniforms.march.pose * vec4(x,y,z,1.0)).xyz;
+    vec3 view = (uniforms.march.pose * vec4(normalize(vec3(x,y,z)),1.0)).xyz;
     vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
 
     // adjust origin for eye
 #define HALF_IOD 0.01
-    vec3 dir = normalize(view - origin);
-    vec3 up_dir = normalize(up - origin);
-    vec3 eye_axis = normalize(cross(dir,up_dir));
+    vec3 dir = view - origin;
+    vec3 up_dir = up - origin;
+    vec3 eye_axis = cross(dir,up_dir);
     if (push.eye == 0) {
         origin -= HALF_IOD * uniforms.march.scale * eye_axis;
     }
@@ -56,16 +56,12 @@ void main() {
     );
 
     // draw grey RGBA preview
-    draw_block(
-        rgba_image,
-        b,
-        vec4(
-            clamp(float(depth_occlusion.x) / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0),
-            0.5 + 0.5 * y,
-            0.5 + 0.5 * z,
-            //depth_occlusion.y,
-            //0.0,
-            1.0
-        )
-    );
+    float depth = 1.0 - clamp(depth_occlusion.x / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0);
+    float occlusion = depth_occlusion.y;
+    vec4 color = uniforms.render.background_color;
+    if (occlusion > 0.0) {
+        color = vec4(pow(occlusion,16.0) * vec3(depth),1.0);
+    }
+    //draw_block(rgba_image,b,color);
+    draw_block(rgba_image,b,vec4(depth,depth,depth,1.0));
 }

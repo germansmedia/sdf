@@ -35,12 +35,14 @@ struct ViewConfig {
     uint height;
     uint type_;
     uint tbd0;
+
     vec4 fov;
 };
 
 struct Progress {
     uint phase;  // one of PHASE_*
     uint x,y;  // pixel offset of this block/pixel
+    uint tbd0;
 };
 
 struct March {
@@ -56,6 +58,8 @@ struct March {
     uint max_steps;  // maximum number of marching steps
     uint max_iterations;  // maximum number of iterations
     uint tbd0;
+
+    vec4 view_dir;  // view direction (based on head orientation)
 };
 
 struct Render {
@@ -81,6 +85,7 @@ layout (std140,binding = 0) readonly uniform Uniforms {
     Progress progress;
     // formula params
     March march;
+    Render render;
 } uniforms;
 
 #endif

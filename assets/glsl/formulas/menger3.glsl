@@ -13,7 +13,7 @@ void menger3(inout vec3 v,inout float dr,vec3 c) {
     if (v.x < v.z) { v = v.zyx; }
     if (v.y < v.z) { v = v.xzy; }
     //v = MENGER3_ROTATION3 * v;
-    v = MENGER3_ROTATION2 * v;
+    //v = MENGER3_ROTATION2 * v;
     //v = MENGER3_ROTATION1 * v;
     v *= MENGER3_SCALE;
     vec3 cs = MENGER3_CSCALE * (MENGER3_SCALE - 1);

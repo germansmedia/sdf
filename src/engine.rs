@@ -10,7 +10,7 @@ use {
     },
 };
 
-pub const SIZE: usize = 1024;
+pub const SIZE: usize = 2048;
 
 const PHASE_FULL16X16: (u32,u32) = (0,0);
 const PHASE_RIGHT8X16: (u32,u32) = (8,8);
@@ -60,11 +60,11 @@ pub enum ViewType {
 #[derive(Clone,Copy,Debug)]
 #[repr(C)]
 pub struct ViewConfig {
-    width: u32,
-    height: u32,
-    type_: ViewType,
-    tbd0: u32,
-    fov: Fov<f32>,
+    pub width: u32,
+    pub height: u32,
+    pub type_: ViewType,
+    pub tbd0: u32,
+    pub fov: Fov<f32>,
 }
 
 #[derive(Clone,Copy,Debug)]
@@ -84,8 +84,9 @@ pub enum Phase {
 #[derive(Clone,Copy,Debug)]
 #[repr(C)]
 pub struct Progress {
-    phase: Phase,
-    offset: Vec2<u32>,
+    pub phase: Phase,
+    pub offset: Vec2<u32>,
+    pub tbd0: u32,
 }
 
 #[derive(Clone,Copy,Debug,PartialEq)]
@@ -100,6 +101,7 @@ pub struct March {
     pub max_steps: u32,
     pub max_iterations: u32,
     pub tbd0: u32,
+    pub view_dir: Vec4<f32>,
 }
 
 #[derive(Clone,Copy,Debug,PartialEq)]
@@ -153,19 +155,11 @@ pub enum EngineState {
 
 #[derive(Clone,Copy,Debug)]
 #[repr(C)]
-struct DepthOcclusionUniforms {
-    view: ViewConfig,
-    progress: Progress,
-    march: March,
-}
-
-#[derive(Clone,Copy,Debug)]
-#[repr(C)]
-struct LightingUniforms {
-    view: ViewConfig,
-    progress: Progress,
-    march: March,
-    render: Render,
+pub struct EngineUniforms {
+    pub view: ViewConfig,
+    pub progress: Progress,
+    pub march: March,
+    pub render: Render,
 }
 
 pub struct Engine {
@@ -174,6 +168,7 @@ pub struct Engine {
 
     march: March,
     render: Render,
+    uniform_buffer: Arc<UniformBuffer>,
 
     pub state: EngineState,
 
@@ -185,13 +180,11 @@ pub struct Engine {
     _pipeline_layout: Arc<PipelineLayout>,
     _descriptor_set_layout: Arc<DescriptorSetLayout>,
     
-    depth_occlusion_uniform_buffer: Arc<UniformBuffer>,
     _depth_occlusion_pipeline: Arc<ComputePipeline>,
     _depth_occlusion_descriptor_sets: [Arc<DescriptorSet>; 2],
     _depth_occlusion_shader: Arc<ComputeShader>,
     depth_occlusion_command_buffers: [Arc<CommandBuffer>; 2],
 
-    lighting_uniform_buffer: Arc<UniformBuffer>,
     _lighting_pipeline: Arc<ComputePipeline>,
     _lighting_descriptor_sets: [Arc<DescriptorSet>; 2],
     _lighting_shader: Arc<ComputeShader>,
@@ -231,7 +224,7 @@ impl Engine {
         let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<Push>())?;
 
         // create uniform buffers
-        let uniforms = DepthOcclusionUniforms {
+        let uniforms = EngineUniforms {
             view: ViewConfig {
                 width: size.x as u32,
                 height: size.y as u32,
@@ -242,47 +235,34 @@ impl Engine {
             progress: Progress {
                 phase: Phase::Full16x16,
                 offset: Vec2::ZERO,
-            },
-            march,
-        };
-        let depth_occlusion_uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[uniforms]))?;
-        let lighting_uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[LightingUniforms {
-            view: ViewConfig {
-                width: size.x as u32,
-                height: size.y as u32,
-                type_: ViewType::StereoEquirect,
                 tbd0: 0,
-                fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
-            },
-            progress: Progress {
-                phase: Phase::Full16x16,
-                offset: Vec2::ZERO,
             },
             march,
             render,
-        }]))?;
+        };
+        let uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[uniforms]))?;
 
         // create descriptor sets
         let depth_occlusion_descriptor_sets = [
             descriptor_set_layout.build_descriptor_set()?
-                .uniform_buffer(&depth_occlusion_uniform_buffer)
+                .uniform_buffer(&uniform_buffer)
                 .image2dview(&do_image_views[0])
                 .image2dview(&rgba_image_views[0])
                 .build(),
             descriptor_set_layout.build_descriptor_set()?
-                .uniform_buffer(&depth_occlusion_uniform_buffer)
+                .uniform_buffer(&uniform_buffer)
                 .image2dview(&do_image_views[1])
                 .image2dview(&rgba_image_views[1])
                 .build(),
         ];
         let lighting_descriptor_sets = [
             descriptor_set_layout.build_descriptor_set()?
-                .uniform_buffer(&lighting_uniform_buffer)
+                .uniform_buffer(&uniform_buffer)
                 .image2dview(&do_image_views[0])
                 .image2dview(&rgba_image_views[0])
                 .build(),
             descriptor_set_layout.build_descriptor_set()?
-                .uniform_buffer(&lighting_uniform_buffer)
+                .uniform_buffer(&uniform_buffer)
                 .image2dview(&do_image_views[1])
                 .image2dview(&rgba_image_views[1])
                 .build(),
@@ -363,6 +343,7 @@ impl Engine {
         
             march,
             render,
+            uniform_buffer,
 
             state: EngineState::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0),
         
@@ -374,13 +355,11 @@ impl Engine {
             _pipeline_layout: pipeline_layout,
             _descriptor_set_layout: descriptor_set_layout,
             
-            depth_occlusion_uniform_buffer,
             _depth_occlusion_pipeline: depth_occlusion_pipeline,
             _depth_occlusion_descriptor_sets: depth_occlusion_descriptor_sets,
             _depth_occlusion_shader: depth_occlusion_shader,
             depth_occlusion_command_buffers,
         
-            lighting_uniform_buffer,
             _lighting_pipeline: lighting_pipeline,
             _lighting_descriptor_sets: lighting_descriptor_sets,
             _lighting_shader: lighting_shader,
@@ -423,7 +402,7 @@ impl Engine {
             };
             match stage {
                 Stage::DepthOcclusion => {
-                    self.depth_occlusion_uniform_buffer.data_mut()?[0] = DepthOcclusionUniforms {
+                    self.uniform_buffer.data_mut()?[0] = EngineUniforms {
                         view: ViewConfig {
                             width: self.rgba_image.size().x as u32,
                             height: self.rgba_image.size().y as u32,
@@ -434,8 +413,10 @@ impl Engine {
                         progress: Progress {
                             phase,
                             offset: Vec2 { x: offset.0,y: offset.1, },
+                            tbd0: 0,
                         },
                         march: self.march,
+                        render: self.render,
                     };
                     for i in 0..2 {
                         self.queue.submit(&self.depth_occlusion_command_buffers[i],None,None)?;
@@ -454,7 +435,7 @@ impl Engine {
                     };        
                 },
                 Stage::Lighting => {
-                    self.lighting_uniform_buffer.data_mut()?[0] = LightingUniforms {
+                    self.uniform_buffer.data_mut()?[0] = EngineUniforms {
                         view: ViewConfig {
                             width: self.rgba_image.size().x as u32,
                             height: self.rgba_image.size().y as u32,
@@ -465,6 +446,7 @@ impl Engine {
                         progress: Progress {
                             phase,
                             offset: Vec2 { x: offset.0,y: offset.1, },
+                            tbd0: 0,
                         },
                         march: self.march,
                         render: self.render,
