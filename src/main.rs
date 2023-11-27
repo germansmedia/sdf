@@ -45,14 +45,14 @@ fn main() -> Result<(),String> {
         de_stop: 0.0001,  // "de_stop"
         de_stop_factor: 10.0,  // "de_stop_factor"
         max_steps: 500,  // maximum number of path trace steps
-        max_iterations: 20,  // maximum number of iteractions
+        max_iterations: 60,  // maximum number of iteractions
         tbd0: 0,
         view_dir: Vec4::UNIT_Z,  // viewing direction (mainly for measurement and lighting)
     };
 
     // rendering/lighting parameters
     let render = Render {
-        albedo_color: Vec4 { x: 0.1,y: 0.5,z: 0.7,w: 1.0, },  // albedo
+        albedo_color: Vec4 { x: 0.4,y: 0.5,z: 0.2,w: 1.0, },  // albedo
         key_light_pos: Vec4 { x: -10.0,y: 20.0,z: 30.0, w: 1.0, },  // key light position in fractal space
         key_light_color: Vec4 { x: 1.1,y: 1.2,z: 0.9, w: 1.0, },  // key light color
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow RGB power (old film effect)

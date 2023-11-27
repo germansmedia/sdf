@@ -172,8 +172,8 @@ pub struct Engine {
 
     pub state: EngineState,
 
-    _do_image: Arc<Image2D>,
-    _do_image_views: [Arc<Image2DView>; 2],
+    _dosi_image: Arc<Image2D>,
+    _dosi_image_views: [Arc<Image2DView>; 2],
     rgba_image: Arc<Image2D>,
     _rgba_image_views: [Arc<Image2DView>; 2],
 
@@ -203,12 +203,12 @@ impl Engine {
 
         // create depth-occlusion image
         let size = rgba_image.size();
-        let do_image = gpu.create_image2d::<u8>(ImageFormat::RG32F,size,rgba_image.layers(),1,1,ImageUsage::Storage,None)?;
+        let dosi_image = gpu.create_image2d::<u8>(ImageFormat::RGBA32F,size,rgba_image.layers(),1,1,ImageUsage::Storage,None)?;
 
         // create image views
-        let do_image_views = [
-            do_image.create_view(0,0,1)?,
-            do_image.create_view(1,0,1)?,
+        let dosi_image_views = [
+            dosi_image.create_view(0,0,1)?,
+            dosi_image.create_view(1,0,1)?,
         ];
         let rgba_image_views = [
             rgba_image.create_view(0,0,1)?,
@@ -246,24 +246,24 @@ impl Engine {
         let depth_occlusion_descriptor_sets = [
             descriptor_set_layout.build_descriptor_set()?
                 .uniform_buffer(&uniform_buffer)
-                .image2dview(&do_image_views[0])
+                .image2dview(&dosi_image_views[0])
                 .image2dview(&rgba_image_views[0])
                 .build(),
             descriptor_set_layout.build_descriptor_set()?
                 .uniform_buffer(&uniform_buffer)
-                .image2dview(&do_image_views[1])
+                .image2dview(&dosi_image_views[1])
                 .image2dview(&rgba_image_views[1])
                 .build(),
         ];
         let lighting_descriptor_sets = [
             descriptor_set_layout.build_descriptor_set()?
                 .uniform_buffer(&uniform_buffer)
-                .image2dview(&do_image_views[0])
+                .image2dview(&dosi_image_views[0])
                 .image2dview(&rgba_image_views[0])
                 .build(),
             descriptor_set_layout.build_descriptor_set()?
                 .uniform_buffer(&uniform_buffer)
-                .image2dview(&do_image_views[1])
+                .image2dview(&dosi_image_views[1])
                 .image2dview(&rgba_image_views[1])
                 .build(),
         ];
@@ -347,8 +347,8 @@ impl Engine {
 
             state: EngineState::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0),
         
-            _do_image: do_image,
-            _do_image_views: do_image_views,
+            _dosi_image: dosi_image,
+            _dosi_image_views: dosi_image_views,
             rgba_image: Arc::clone(&rgba_image),
             _rgba_image_views: rgba_image_views,
         

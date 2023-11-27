@@ -10,7 +10,7 @@ layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 
 // 0 = uniforms, see base.glsl
 
-layout (binding = 1) writeonly uniform image2D do_image;
+layout (binding = 1) writeonly uniform image2D dosi_image;
 
 layout (binding = 2) writeonly uniform image2D rgba_image;
 
@@ -34,7 +34,7 @@ void main() {
     vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
 
     // adjust origin for eye
-#define HALF_IOD 0.01
+#define HALF_IOD 0.001
     vec3 dir = view - origin;
     vec3 up_dir = up - origin;
     vec3 eye_axis = cross(dir,up_dir);
@@ -46,22 +46,17 @@ void main() {
     }
 
     // march the ray
-    vec2 depth_occlusion = process_depth_occlusion(origin,dir);
+    vec4 dosi = process_dosi(origin,dir);
 
-    // draw depth-occlusion block
-    draw_block(
-        do_image,
-        b,
-        vec4(depth_occlusion,0.0,0.0)
-    );
+    // draw depth-occlusion-steps-iterations block
+    draw_block(dosi_image,b,dosi);
 
     // draw grey RGBA preview
-    float depth = 1.0 - clamp(depth_occlusion.x / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0);
-    float occlusion = depth_occlusion.y;
+    float depth = 1.0 - clamp(dosi.x / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0);
+    float occlusion = dosi.y;
     vec4 color = uniforms.render.background_color;
     if (occlusion > 0.0) {
-        color = vec4(pow(occlusion,16.0) * vec3(depth),1.0);
+        color = vec4(0.4 * pow(occlusion,16.0) * vec3(depth),1.0);
     }
-    //draw_block(rgba_image,b,color);
-    draw_block(rgba_image,b,vec4(depth,depth,depth,1.0));
+    draw_block(rgba_image,b,color);
 }

@@ -18,7 +18,7 @@ void main() {
     // get direction
     vec3 origin = (uniforms.march.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
     vec3 view = (uniforms.march.pose * vec4(uniforms.march.view_dir.xyz,1.0)).xyz;
-    vec3 dir = view - origin;
+    vec3 dir = normalize(view - origin);
 
     // measure distance
     storage.depth = measure_depth(origin,dir);

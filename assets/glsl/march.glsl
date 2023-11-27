@@ -5,15 +5,16 @@
 
 #include "formulas/mandelbox.glsl"
 #include "formulas/menger3.glsl"
+#include "formulas/amazingbox.glsl"
 
 // consult the fractal formulas
 float consult(in vec3 p,inout uint iterations) {
     vec3 v = p;
     float dr = 1.0;
     float r = length(v);
-    uint i = 0;
-    for (; (r < uniforms.march.escape) && (i <= uniforms.march.max_iterations); i++) {
-        menger3(v,dr,p);
+    iterations = 0;
+    for (; (r < uniforms.march.escape) && (iterations <= uniforms.march.max_iterations); iterations++) {
+        amazingbox(v,dr,p);
         r = length(v);
     }
     return r / abs(dr);
@@ -24,16 +25,18 @@ bool march_ray(
     in vec3 p,  // ray start
     in vec3 dp,  // march direction
     out float r,  // distance to object
-    out uint steps  // how many steps were taken
+    out uint steps,  // how many steps were taken
+    out uint iterations  // how many iterations were needed
 ) {
     float closest = uniforms.march.horizon;
     steps = 0;
+    r = 0.0;
     float de_stop = uniforms.march.de_stop;
     bool hit = false;
-    uint iterations = 0;
+    iterations = 0;
     float de = consult(p,iterations);
-    r = de;
     if ((iterations > uniforms.march.max_iterations) || (de < de_stop)) {
+        r = de;
         return true;
     }
     else {
@@ -47,11 +50,11 @@ bool march_ray(
                 de = consult(p,iterations);
                 variation = -h;
             }
-            r += de;
             if ((iterations > uniforms.march.max_iterations) || (de < de_stop)) {
                 return true;
             }
             float last_de = de;
+            r += de;
             p += de * dp;
             de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
             de = consult(p,iterations);
@@ -70,23 +73,21 @@ bool march_ray(
 float measure_depth(in vec3 p,in vec3 dp) {
     float r;
     uint steps;
-    if (march_ray(p,dp,r,steps)) {
-        return r;
-    }
-    else {
-        return uniforms.march.horizon;
-    }
+    uint iterations;
+    march_ray(p,dp,r,steps,iterations);
+    return r;
 }
 
 // process depth/occlusion ray
-vec2 process_depth_occlusion(vec3 p,vec3 dp) {
+vec4 process_dosi(vec3 p,vec3 dp) {
     float r;
     uint steps;
-    if (march_ray(p,dp,r,steps)) {
+    uint iterations;
+    if (march_ray(p,dp,r,steps,iterations)) {
         float occlusion = 1.0 - clamp(float(steps) / float(uniforms.march.max_steps),0.0,1.0);
-        return vec2(r,occlusion);
+        return vec4(r,occlusion,float(steps),float(iterations));
     }
     else {
-        return vec2(uniforms.march.horizon,-1.0);
+        return vec4(uniforms.march.horizon,-1.0,0.0,0.0);
     }
 }

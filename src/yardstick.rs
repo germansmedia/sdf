@@ -98,7 +98,7 @@ impl Yardstick {
     }
 
     pub fn measure_depth(&mut self,orientation: Quat<f32>) -> Result<f32,String> {
-        let rotation = Mat3x3::<f32>::from(orientation).inv().transpose();
+        let rotation = Mat3x3::<f32>::from(orientation);
         let forward = rotation * Vec3::<f32>::UNIT_Z;
         self.uniforms.march.view_dir = Vec4 { x: forward.x,y: forward.y,z: forward.z,w: 0.0, };
         self.uniform_buffer.data_mut()?[0] = self.uniforms;
