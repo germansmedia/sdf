@@ -15,11 +15,11 @@ layout (binding = 1) writeonly buffer Buffer {
 
 void main() {
 
-    // get direction
+    // get directions
     vec3 origin = (uniforms.march.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
-    vec3 view = (uniforms.march.pose * vec4(uniforms.march.view_dir.xyz,1.0)).xyz;
-    vec3 dir = normalize(view - origin);
+    vec3 forward = (uniforms.march.pose * vec4(uniforms.march.forward_dir.xyz,1.0)).xyz;
+    vec3 dir = normalize(forward - origin);
 
-    // measure distance
+    // measure distances
     storage.depth = measure_depth(origin,dir);
 }

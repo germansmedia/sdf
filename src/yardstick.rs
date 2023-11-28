@@ -97,15 +97,12 @@ impl Yardstick {
         })
     }
 
-    pub fn measure_depth(&mut self,orientation: Quat<f32>) -> Result<f32,String> {
-        let rotation = Mat3x3::<f32>::from(orientation);
-        let forward = rotation * Vec3::<f32>::UNIT_Z;
-        self.uniforms.march.view_dir = Vec4 { x: forward.x,y: forward.y,z: forward.z,w: 0.0, };
+    pub fn measure_depth(&mut self,march: &March) -> Result<f32,String> {
+        self.uniforms.march = *march;
         self.uniform_buffer.data_mut()?[0] = self.uniforms;
         self.queue.submit(&self.command_buffer,None,None)?;
         self.queue.wait()?;
         self.storage = self.storage_buffer.data()?[0];
-        logd!("and this actually works??  {}",self.storage.depth);
         Ok(self.storage.depth)
     }
 }

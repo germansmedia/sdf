@@ -56,7 +56,9 @@ void main() {
     float occlusion = dosi.y;
     vec4 color = uniforms.render.background_color;
     if (occlusion > 0.0) {
-        color = vec4(0.4 * pow(occlusion,16.0) * vec3(depth),1.0);
+        vec3 albedo = color_scheme(0.04 * dosi.w);
+        float fog = clamp(16.0 * uniforms.render.background_color.a * dosi.x / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0);
+        color = vec4(mix(pow(occlusion,16.0) * albedo,uniforms.render.background_color.rgb,fog),1.0);
     }
     draw_block(rgba_image,b,color);
 }

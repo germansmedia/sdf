@@ -7,6 +7,25 @@
 #include "formulas/menger3.glsl"
 #include "formulas/amazingbox.glsl"
 
+// Agressive Stance color scheme
+#define AS_ONE vec3(0.0275,0.2196,0.2588)
+#define AS_TWO vec3(0.0431,0.3647,0.3176)
+#define AS_THREE vec3(0.9098,0.6392,0.4157)
+#define AS_FOUR vec3(0.8314,0.2627,0.3490)
+#define AS_FIVE vec3(0.6118,0.1922,0.3804)
+
+vec3 color_scheme(float f) {
+    uint i = uint(floor(4.0 * clamp(f,0.0,1.0)));
+    float r = fract(4.0 * f);
+    switch(i) {
+        case 0: return mix(AS_ONE,AS_TWO,r);
+        case 1: return mix(AS_TWO,AS_THREE,r);
+        case 2: return mix(AS_THREE,AS_FOUR,r);
+        case 3: return mix(AS_FOUR,AS_FIVE,r);
+        case 4: return AS_FIVE;
+    }
+}
+
 // consult the fractal formulas
 float consult(in vec3 p,inout uint iterations) {
     vec3 v = p;
@@ -65,7 +84,7 @@ bool march_ray(
             steps += 1;
         }
     }
-    r = de;
+    r = closest;
     return false;
 }
 
@@ -74,8 +93,12 @@ float measure_depth(in vec3 p,in vec3 dp) {
     float r;
     uint steps;
     uint iterations;
-    march_ray(p,dp,r,steps,iterations);
-    return r;
+    if(march_ray(p,dp,r,steps,iterations)) {
+        return r;
+    }
+    else {
+        return uniforms.march.horizon;
+    }
 }
 
 // process depth/occlusion ray

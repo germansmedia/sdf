@@ -15,31 +15,6 @@ layout (binding = 1,rgba32f) readonly uniform image2D dosi_image;
 
 layout (binding = 2) writeonly uniform image2D rgba_image;
 
-// Agressive Stance color scheme
-#define AS_ONE vec3(0.0275,0.2196,0.2588)
-#define AS_TWO vec3(0.0431,0.3647,0.3176)
-#define AS_THREE vec3(0.9098,0.6392,0.4157)
-#define AS_FOUR vec3(0.8314,0.2627,0.3490)
-#define AS_FIVE vec3(0.6118,0.1922,0.3804)
-
-//#define AS_ONE vec3(0.4,0.4,0.4)
-//#define AS_TWO vec3(0.8,0.7,0.1)
-//#define AS_THREE vec3(0.1,0.3,0.8)
-//#define AS_FOUR vec3(0.1,0.4,0.2)
-//#define AS_FIVE vec3(0.8,0.1,0.1)
-
-vec3 color_scheme(float f) {
-    uint i = uint(floor(4.0 * clamp(f,0.0,1.0)));
-    float r = fract(4.0 * f);
-    switch(i) {
-        case 0: return mix(AS_ONE,AS_TWO,r);
-        case 1: return mix(AS_TWO,AS_THREE,r);
-        case 2: return mix(AS_THREE,AS_FOUR,r);
-        case 3: return mix(AS_FOUR,AS_FIVE,r);
-        case 4: return AS_FIVE;
-    }
-}
-
 vec3 construct_normal(vec3 p,float h) {
     vec2 k = vec2(1,-1);
     uint iterations;
@@ -104,8 +79,6 @@ void main() {
     vec3 pixel = uniforms.render.background_color.rgb;
     if (dosi.y >= 0.0) {
 
-        float pixel_area = 4.0 / (uniforms.view.width * uniforms.view.height);
-
         float r = dosi.x;
         float occlusion = pow(dosi.y,16.0);
 
@@ -113,7 +86,7 @@ void main() {
         vec3 p = origin + r * dir;
 
         // calculate normal
-        vec3 n = construct_normal(p,10.0 * r * pixel_area);
+        vec3 n = construct_normal(p,0.0001 * r);
 
         // start lighting
         //vec3 albedo = uniforms.render.albedo_color.rgb;

@@ -10,7 +10,7 @@ use {
     },
 };
 
-pub const SIZE: usize = 2048;
+pub const SIZE: usize = 1024;
 
 const PHASE_FULL16X16: (u32,u32) = (0,0);
 const PHASE_RIGHT8X16: (u32,u32) = (8,8);
@@ -101,7 +101,7 @@ pub struct March {
     pub max_steps: u32,
     pub max_iterations: u32,
     pub tbd0: u32,
-    pub view_dir: Vec4<f32>,
+    pub forward_dir: Vec4<f32>,
 }
 
 #[derive(Clone,Copy,Debug,PartialEq)]

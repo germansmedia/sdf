@@ -59,7 +59,7 @@ struct March {
     uint max_iterations;  // maximum number of iterations
     uint tbd0;
 
-    vec4 view_dir;  // view direction (based on head orientation)
+    vec4 forward_dir;  // view direction (based on head orientation)
 };
 
 struct Render {

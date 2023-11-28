@@ -34,7 +34,7 @@ fn main() -> Result<(),String> {
     let main_view = app.main_view();
 
     // pose inside fractal space
-    let mut pose = Pose { p: Vec3 { x: 1.0,y: -2.0,z: 10.0, },o: Quat::ONE, };  // camera relative to fractal
+    let mut pose = Pose { p: Vec3 { x: 0.0,y: 0.0,z: 10.0, },o: Quat::ONE, };  // camera relative to fractal
 
     // ray marching parameters
     let mut march = March {
@@ -45,9 +45,9 @@ fn main() -> Result<(),String> {
         de_stop: 0.0001,  // "de_stop"
         de_stop_factor: 10.0,  // "de_stop_factor"
         max_steps: 500,  // maximum number of path trace steps
-        max_iterations: 60,  // maximum number of iteractions
+        max_iterations: 20,  // maximum number of iteractions
         tbd0: 0,
-        view_dir: Vec4::UNIT_Z,  // viewing direction (mainly for measurement and lighting)
+        forward_dir: Vec4::UNIT_Z,  // viewing direction (mainly for measurement and lighting)
     };
 
     // rendering/lighting parameters
@@ -157,9 +157,6 @@ fn main() -> Result<(),String> {
 
                 if let AppState::Focused = app.state() {
 
-                    // query distance to fractal
-                    let depth = yardstick.measure_depth(projector.head_orientation());
-
                     // synchronize actions
                     app.sync_actions(&action_set)?;
 
@@ -172,11 +169,26 @@ fn main() -> Result<(),String> {
                     // calculate new position from thumbstick
                     let nav = action_navigate.get_vec2()?;
                     if (nav.x != 0.0) || (nav.y != 0.0) {
-                        // fly in viewing direction
+
+                        // get fly/view direction
                         let rotation = Mat3x3::<f32>::from(projector.head_orientation()).inv().transpose();
                         let forward = rotation * Vec3::<f32>::UNIT_Z;
                         let right = rotation * Vec3::<f32>::UNIT_X;
-                        pose.p += -FORWARD_SPEED * nav.y * forward + STRAFE_SPEED * nav.x * right;
+
+                        // measure distance and adjust scale factor
+                        march.pose = pose.into();
+                        march.forward_dir = Vec4 { x: -forward.x,y: -forward.y,z: -forward.z,w: 0.0, };
+                        march.scale = yardstick.measure_depth(&march)?;
+                        if march.scale > 2.0 {
+                            march.scale = 2.0;
+                        }
+                        if march.scale < 0.00001 {
+                            march.scale = 0.00001;
+                        }
+                        logd!("scale = {}",march.scale);
+    
+                        // fly in viewing direction
+                        pose.p += -FORWARD_SPEED * march.scale * nav.y * forward + STRAFE_SPEED * march.scale * nav.x * right;
                         march.pose = pose.into();
                         tx.send(EngineCommand::Update(march,render)).unwrap();
                     }
