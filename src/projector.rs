@@ -68,7 +68,7 @@ impl Projector {
         vertices.push(FlatVertex { _pos: Vec2 { x: 1.0,y: -1.0, }, });
         vertices.push(FlatVertex { _pos: Vec2 { x: 1.0,y: 1.0, }, });
         vertices.push(FlatVertex { _pos: Vec2 { x: -1.0,y: 1.0, }, });
-        let generic_quad = gpu.create_vertex_buffer(Init::Data(&vertices))?;
+        let generic_quad = gpu.create_vertex_buffer(&queue,AccessStyle::Gpu,&vertices)?;
 
         // create render pass to display rgba_image around user
         let render_pass = gpu.create_color_render_pass(ImageFormat::RGBA8SRGB,1)?;
@@ -84,22 +84,10 @@ impl Projector {
             matrix: Mat4x4::ONE,
             fovs: [Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, }; 2],
         };
-        let uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[uniforms]))?;
-        let sampler = gpu.create_sampler(
-            SamplerFilter::Linear,
-            SamplerFilter::Linear,
-            SamplerFilter::Linear,
-            AddressMode::ClampToEdge,
-            AddressMode::ClampToEdge,
-            AddressMode::ClampToEdge,
-            0.0,
-            Anisotropy::Disabled,
-            CompareOp::Always,
-            0.0,
-            0.0,
-            Vec4::<f32> { x: 0.0,y: 0.0,z: 0.0,w: 0.0, },
-            false,
-        )?;
+        let uniform_buffer = gpu.create_uniform_buffer(&queue,AccessStyle::Shared,&[uniforms])?;
+        let sampler = gpu.build_sampler()
+            .address_mode(AddressMode::ClampToEdge,AddressMode::ClampToEdge,AddressMode::ClampToEdge)
+            .build()?;
         let mut descriptor_sets = Vec::<Arc<DescriptorSet>>::new();
         for i in 0..layers {
             descriptor_sets.push(descriptor_set_layout.build_descriptor_set()?
@@ -113,31 +101,9 @@ impl Projector {
         let vertex_shader = gpu.create_vertex_shader(&code)?;
         let code = app.load_asset("assets","draw_equirect_fs.spirv")?;
         let fragment_shader = gpu.create_fragment_shader(&code)?;
-        let graphics_pipeline = pipeline_layout.create_graphics_pipeline::<FlatVertex>(
-            &render_pass,
-            &vertex_shader,
-            &fragment_shader,
-            PrimitiveTopology::TriangleFan,
-            PrimitiveRestart::Disabled,
-            0,
-            DepthClamp::Disabled,
-            PrimitiveDiscard::Disabled,
-            PolygonMode::Fill,
-            CullMode::None,
-            DepthBias::Disabled,
-            1.0,
-            1,
-            SampleShading::Disabled,
-            AlphaToCoverage::Enabled,
-            AlphaToOne::Disabled,
-            DepthTest::Disabled,
-            true,
-            StencilTest::Disabled,
-            LogicOp::Disabled,
-            Blend::Disabled,
-            (true,true,true,true),
-            Vec4 { x: 0.0,y: 0.0,z: 0.0,w: 1.0, },
-        )?;
+        let graphics_pipeline = pipeline_layout.build_graphics_pipeline(&render_pass,&vertex_shader,&fragment_shader)
+            .primitive_topology(PrimitiveTopology::TriangleFan)
+            .build::<FlatVertex>()?;
 
         // create command buffers for each swapchain image
         let mut contexts = Vec::<Vec<Context>>::new();
@@ -197,7 +163,7 @@ impl Projector {
         let index = self.swapchain.acquire()?;
         self.orientation = self.app.local_space().locate_other(&self.app.head_space(),t)?.o;
         let matrix = Mat4x4::<f32>::from(self.orientation).inv().transpose();
-        self.uniform_buffer.data_mut()?[0] = Uniforms {
+        self.uniform_buffer.data_mut(&self.queue)?[0] = Uniforms {
             matrix,
             fovs: [self.main_view.fov(0),self.main_view.fov(1)],
         };

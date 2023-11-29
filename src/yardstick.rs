@@ -60,11 +60,11 @@ impl Yardstick {
             march,
             render,
         };
-        let uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[uniforms]))?;
+        let uniform_buffer = gpu.create_uniform_buffer(&queue,AccessStyle::Shared,&[uniforms])?;
         let storage = Storage {
             depth: 0.0,
         };
-        let storage_buffer = gpu.create_storage_buffer(Init::Data(&[storage]))?;
+        let storage_buffer = gpu.create_storage_buffer(&queue,AccessStyle::Shared,&[storage])?;
         let descriptor_set = descriptor_set_layout.build_descriptor_set()?
             .uniform_buffer(&uniform_buffer)
             .storage_buffer(&storage_buffer)
@@ -99,10 +99,10 @@ impl Yardstick {
 
     pub fn measure_depth(&mut self,march: &March) -> Result<f32,String> {
         self.uniforms.march = *march;
-        self.uniform_buffer.data_mut()?[0] = self.uniforms;
+        self.uniform_buffer.data_mut(&self.queue)?[0] = self.uniforms;
         self.queue.submit(&self.command_buffer,None,None)?;
         self.queue.wait()?;
-        self.storage = self.storage_buffer.data()?[0];
+        self.storage = self.storage_buffer.data(&self.queue)?[0];
         Ok(self.storage.depth)
     }
 }

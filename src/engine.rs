@@ -203,7 +203,7 @@ impl Engine {
 
         // create depth-occlusion image
         let size = rgba_image.size();
-        let dosi_image = gpu.create_image2d::<u8>(ImageFormat::RGBA32F,size,rgba_image.layers(),1,1,ImageUsage::Storage,None)?;
+        let dosi_image = gpu.create_empty_image2d(ImageFormat::RGBA32F,size,rgba_image.layers(),1,1,ImageUsage::Storage)?;
 
         // create image views
         let dosi_image_views = [
@@ -240,7 +240,7 @@ impl Engine {
             march,
             render,
         };
-        let uniform_buffer = gpu.create_uniform_buffer(Init::Data(&[uniforms]))?;
+        let uniform_buffer = gpu.create_uniform_buffer(&queue,AccessStyle::Shared,&[uniforms])?;
 
         // create descriptor sets
         let depth_occlusion_descriptor_sets = [
@@ -402,7 +402,7 @@ impl Engine {
             };
             match stage {
                 Stage::DepthOcclusion => {
-                    self.uniform_buffer.data_mut()?[0] = EngineUniforms {
+                    self.uniform_buffer.data_mut(&self.queue)?[0] = EngineUniforms {
                         view: ViewConfig {
                             width: self.rgba_image.size().x as u32,
                             height: self.rgba_image.size().y as u32,
@@ -435,7 +435,7 @@ impl Engine {
                     };        
                 },
                 Stage::Lighting => {
-                    self.uniform_buffer.data_mut()?[0] = EngineUniforms {
+                    self.uniform_buffer.data_mut(&self.queue)?[0] = EngineUniforms {
                         view: ViewConfig {
                             width: self.rgba_image.size().x as u32,
                             height: self.rgba_image.size().y as u32,
