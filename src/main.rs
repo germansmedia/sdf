@@ -65,6 +65,7 @@ fn main() -> Result<(),String> {
     // the equirectangular image that the engine renders to and the projector shows
     let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: SIZE * 2,y: SIZE, },2,1,1,ImageUsage::SampledStorage)?;
 
+    /*
     // start engine thread
     let engine_gpu = Arc::clone(&gpu);
     let depth_occlusion_code = app.load_asset("assets","depth_occlusion_cs.spirv")?;
@@ -110,6 +111,7 @@ fn main() -> Result<(),String> {
         }
         Result::<(),String>::Ok(())
     });
+    */
 
     // create projector
     let mut projector = Projector::new(&app,&rgba_image)?;
@@ -190,15 +192,15 @@ fn main() -> Result<(),String> {
                         // fly in viewing direction
                         pose.p += -FORWARD_SPEED * march.scale * nav.y * forward + STRAFE_SPEED * march.scale * nav.x * right;
                         march.pose = pose.into();
-                        tx.send(EngineCommand::Update(march,render)).unwrap();
+                        //tx.send(EngineCommand::Update(march,render)).unwrap();
                     }
                 }
             },
         }
     }
 
-    let _ = tx.send(EngineCommand::Exit);
-    let _ = engine_thread.join();
+    //let _ = tx.send(EngineCommand::Exit);
+    //let _ = engine_thread.join();
 
     gpu.wait_idle();
 

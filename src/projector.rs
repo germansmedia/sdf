@@ -68,7 +68,7 @@ impl Projector {
         vertices.push(FlatVertex { _pos: Vec2 { x: 1.0,y: -1.0, }, });
         vertices.push(FlatVertex { _pos: Vec2 { x: 1.0,y: 1.0, }, });
         vertices.push(FlatVertex { _pos: Vec2 { x: -1.0,y: 1.0, }, });
-        let generic_quad = gpu.create_vertex_buffer(&queue,AccessStyle::Gpu,&vertices)?;
+        let generic_quad = gpu.create_vertex_buffer(&queue,AccessStyle::Shared,&vertices)?;
 
         // create render pass to display rgba_image around user
         let render_pass = gpu.create_color_render_pass(ImageFormat::RGBA8SRGB,1)?;
