@@ -63,7 +63,7 @@ fn main() -> Result<(),String> {
     };
 
     // the equirectangular image that the engine renders to and the projector shows
-    let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: SIZE * 2,y: SIZE, },2,1,1,ImageUsage::SampledStorage)?;
+    let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: SIZE * 2,y: SIZE, },2,1,1,ImageUsage::SampledStorage,AccessStyle::Shared)?;
 
     /*
     // start engine thread

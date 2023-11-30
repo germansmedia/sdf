@@ -203,7 +203,7 @@ impl Engine {
 
         // create depth-occlusion image
         let size = rgba_image.size();
-        let dosi_image = gpu.create_empty_image2d(ImageFormat::RGBA32F,size,rgba_image.layers(),1,1,ImageUsage::Storage)?;
+        let dosi_image = gpu.create_empty_image2d(ImageFormat::RGBA32F,size,rgba_image.layers(),1,1,ImageUsage::Storage,AccessStyle::Shared)?;
 
         // create image views
         let dosi_image_views = [
