@@ -36,11 +36,11 @@ pub struct Projector {
     images: Vec<Arc<Image2D>>,
     layers: usize,
     _rgba_image: Arc<Image2D>,
-    _generic_quad: Arc<VertexBuffer>,
+    _generic_quad: Arc<VertexBuffer<FlatVertex>>,
     _render_pass: Arc<RenderPass>,
     _descriptor_set_layout: Arc<DescriptorSetLayout>,
     _uniforms: Uniforms,
-    uniform_buffer: Arc<UniformBuffer>,
+    uniform_buffer: Arc<UniformBuffer<Uniforms>>,
     _sampler: Arc<Sampler>,
     _descriptor_sets: Vec<Arc<DescriptorSet>>,
     _pipeline_layout: Arc<PipelineLayout>,
@@ -163,7 +163,7 @@ impl Projector {
         let index = self.swapchain.acquire()?;
         self.orientation = self.app.local_space().locate_other(&self.app.head_space(),t)?.o;
         let matrix = Mat4x4::<f32>::from(self.orientation).inv().transpose();
-        self.uniform_buffer.data_mut(&self.queue)?[0] = Uniforms {
+        self.uniform_buffer.write(&self.queue)?[0] = Uniforms {
             matrix,
             fovs: [self.main_view.fov(0),self.main_view.fov(1)],
         };

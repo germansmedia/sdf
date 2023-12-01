@@ -21,9 +21,9 @@ pub struct Yardstick {
     _gpu: Arc<Gpu>,
     queue: Arc<Queue>,
     uniforms: EngineUniforms,
-    uniform_buffer: Arc<UniformBuffer>,
+    uniform_buffer: Arc<UniformBuffer<EngineUniforms>>,
     storage: Storage,
-    storage_buffer: Arc<StorageBuffer>,
+    storage_buffer: Arc<StorageBuffer<Storage>>,
     _pipeline_layout: Arc<PipelineLayout>,
     _descriptor_set_layout: Arc<DescriptorSetLayout>,
     _measure_pipeline: Arc<ComputePipeline>,
@@ -99,10 +99,10 @@ impl Yardstick {
 
     pub fn measure_depth(&mut self,march: &March) -> Result<f32,String> {
         self.uniforms.march = *march;
-        self.uniform_buffer.data_mut(&self.queue)?[0] = self.uniforms;
+        self.uniform_buffer.write(&self.queue)?[0] = self.uniforms;
         self.queue.submit(&self.command_buffer,None,None)?;
         self.queue.wait()?;
-        self.storage = self.storage_buffer.data(&self.queue)?[0];
+        self.storage = self.storage_buffer.read(&self.queue)?[0];
         Ok(self.storage.depth)
     }
 }

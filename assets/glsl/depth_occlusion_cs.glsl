@@ -34,7 +34,7 @@ void main() {
     vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
 
     // adjust origin for eye
-#define HALF_IOD 0.001
+#define HALF_IOD 0.003
     vec3 dir = view - origin;
     vec3 up_dir = up - origin;
     vec3 eye_axis = cross(dir,up_dir);
@@ -51,14 +51,17 @@ void main() {
     // draw depth-occlusion-steps-iterations block
     draw_block(dosi_image,b,dosi);
 
-    // draw grey RGBA preview
-    float depth = 1.0 - clamp(dosi.x / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0);
-    float occlusion = dosi.y;
-    vec4 color = uniforms.render.background_color;
-    if (occlusion > 0.0) {
-        vec3 albedo = color_scheme(0.04 * dosi.w);
-        float fog = clamp(16.0 * uniforms.render.background_color.a * dosi.x / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0);
-        color = vec4(mix(pow(occlusion,16.0) * albedo,uniforms.render.background_color.rgb,fog),1.0);
+    // draw RGBA preview without lights
+    vec3 pixel = uniforms.render.background_color.rgb;
+    if (dosi.y > 0.0) {
+        float r = dosi.x;
+        float ndist = r / (uniforms.march.scale * uniforms.march.horizon);
+        float occlusion = pow(dosi.y,16.0);
+        vec3 albedo = sample_palette(0.1 * dosi.w).rgb;
+        vec3 ambient_result = uniforms.render.ambient_light_color.rgb * albedo;
+        vec3 result = ambient_result * occlusion;
+        float fog = clamp(16.0 * uniforms.render.background_color.a * ndist,0.0,1.0);
+        pixel = mix(result,pixel,fog);
     }
-    draw_block(rgba_image,b,color);
+    draw_block(rgba_image,b,vec4(pixel,1.0));
 }

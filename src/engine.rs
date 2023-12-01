@@ -10,7 +10,7 @@ use {
     },
 };
 
-pub const SIZE: usize = 1024;
+pub const SIZE: usize = 2048;
 
 const PHASE_FULL16X16: (u32,u32) = (0,0);
 const PHASE_RIGHT8X16: (u32,u32) = (8,8);
@@ -107,14 +107,17 @@ pub struct March {
 #[derive(Clone,Copy,Debug,PartialEq)]
 #[repr(C)]
 pub struct Render {
-    pub albedo_color: Vec4<f32>,
     pub key_light_pos: Vec4<f32>,
     pub key_light_color: Vec4<f32>,
     pub shadow_power: Vec4<f32>,
     pub sky_light_color: Vec4<f32>,
+
     pub ambient_light_color: Vec4<f32>,
     pub background_color: Vec4<f32>,
     pub glow_color: Vec4<f32>,
+    pub tbd0: Vec4<f32>,
+
+    pub palette: [Vec4<f32>; 4],
 }
 
 #[derive(Clone,Copy,Debug)]
@@ -168,7 +171,7 @@ pub struct Engine {
 
     march: March,
     render: Render,
-    uniform_buffer: Arc<UniformBuffer>,
+    uniform_buffer: Arc<UniformBuffer<EngineUniforms>>,
 
     pub state: EngineState,
 
@@ -179,7 +182,7 @@ pub struct Engine {
 
     _pipeline_layout: Arc<PipelineLayout>,
     _descriptor_set_layout: Arc<DescriptorSetLayout>,
-    
+
     _depth_occlusion_pipeline: Arc<ComputePipeline>,
     _depth_occlusion_descriptor_sets: [Arc<DescriptorSet>; 2],
     _depth_occlusion_shader: Arc<ComputeShader>,
@@ -203,7 +206,7 @@ impl Engine {
 
         // create depth-occlusion image
         let size = rgba_image.size();
-        let dosi_image = gpu.create_empty_image2d(ImageFormat::RGBA32F,size,rgba_image.layers(),1,1,ImageUsage::Storage,AccessStyle::Shared)?;
+        let dosi_image = gpu.create_empty_image2d(ImageFormat::RGBA32F,size,rgba_image.layers(),1,1,ImageUsage::Storage,AccessStyle::Gpu)?;
 
         // create image views
         let dosi_image_views = [
@@ -402,7 +405,7 @@ impl Engine {
             };
             match stage {
                 Stage::DepthOcclusion => {
-                    self.uniform_buffer.data_mut(&self.queue)?[0] = EngineUniforms {
+                    self.uniform_buffer.write(&self.queue)?[0] = EngineUniforms {
                         view: ViewConfig {
                             width: self.rgba_image.size().x as u32,
                             height: self.rgba_image.size().y as u32,
@@ -435,7 +438,7 @@ impl Engine {
                     };        
                 },
                 Stage::Lighting => {
-                    self.uniform_buffer.data_mut(&self.queue)?[0] = EngineUniforms {
+                    self.uniform_buffer.write(&self.queue)?[0] = EngineUniforms {
                         view: ViewConfig {
                             width: self.rgba_image.size().x as u32,
                             height: self.rgba_image.size().y as u32,

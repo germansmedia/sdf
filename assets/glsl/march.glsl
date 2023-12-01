@@ -6,25 +6,16 @@
 #include "formulas/mandelbox.glsl"
 #include "formulas/menger3.glsl"
 #include "formulas/amazingbox.glsl"
+#include "formulas/amazingsurf.glsl"
 
-// Agressive Stance color scheme
-#define AS_ONE vec3(0.0275,0.2196,0.2588)
-#define AS_TWO vec3(0.0431,0.3647,0.3176)
-#define AS_THREE vec3(0.9098,0.6392,0.4157)
-#define AS_FOUR vec3(0.8314,0.2627,0.3490)
-#define AS_FIVE vec3(0.6118,0.1922,0.3804)
+#define ITERATE(formula) \
+    if ((r >= uniforms.march.escape) || (iterations > uniforms.march.max_iterations)) { \
+        return r / abs(dr); \
+    } \
+    formula(v,dr,p); \
+    r = length(v); \
+    iterations++;
 
-vec3 color_scheme(float f) {
-    uint i = uint(floor(4.0 * clamp(f,0.0,1.0)));
-    float r = fract(4.0 * f);
-    switch(i) {
-        case 0: return mix(AS_ONE,AS_TWO,r);
-        case 1: return mix(AS_TWO,AS_THREE,r);
-        case 2: return mix(AS_THREE,AS_FOUR,r);
-        case 3: return mix(AS_FOUR,AS_FIVE,r);
-        case 4: return AS_FIVE;
-    }
-}
 
 // consult the fractal formulas
 float consult(in vec3 p,inout uint iterations) {
@@ -32,10 +23,30 @@ float consult(in vec3 p,inout uint iterations) {
     float dr = 1.0;
     float r = length(v);
     iterations = 0;
-    for (; (r < uniforms.march.escape) && (iterations <= uniforms.march.max_iterations); iterations++) {
-        amazingbox(v,dr,p);
-        r = length(v);
-    }
+    ITERATE(amazingsurf)
+    ITERATE(amazingsurf)
+    ITERATE(amazingbox)
+    ITERATE(menger3)
+    ITERATE(menger3)
+    ITERATE(mandelbox)
+    ITERATE(mandelbox)
+    ITERATE(mandelbox)
+    ITERATE(mandelbox)
+    ITERATE(mandelbox)
+    ITERATE(mandelbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
     return r / abs(dr);
 }
 

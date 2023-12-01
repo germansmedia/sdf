@@ -62,7 +62,7 @@ void main() {
     vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
 
     // adjust origin for eye
-#define HALF_IOD 0.001
+#define HALF_IOD 0.003
     vec3 dir = normalize(view - origin);
     vec3 up_dir = normalize(up - origin);
     vec3 eye_axis = cross(dir,up_dir);
@@ -81,6 +81,7 @@ void main() {
 
         float r = dosi.x;
         float occlusion = pow(dosi.y,16.0);
+        float ndist = r / (uniforms.march.scale * uniforms.march.horizon);
 
         // calculate incident point
         vec3 p = origin + r * dir;
@@ -90,7 +91,7 @@ void main() {
 
         // start lighting
         //vec3 albedo = uniforms.render.albedo_color.rgb;
-        vec3 albedo = color_scheme(0.04 * dosi.w);
+        vec3 albedo = sample_palette(0.1 * dosi.w).rgb;
 
         // key light
         vec3 dkey_light = uniforms.render.key_light_pos.xyz - p;
@@ -115,7 +116,7 @@ void main() {
         vec3 result = (key_result * key_shadow + sky_result * sky_shadow + ambient_result) * occlusion;
 
         // calculate fog
-        float fog = clamp(16.0 * uniforms.render.background_color.a * r / (uniforms.march.scale * uniforms.march.horizon),0.0,1.0);
+        float fog = clamp(16.0 * uniforms.render.background_color.a * ndist,0.0,1.0);
 
         // and mix with fog
         pixel = mix(result,pixel,fog);

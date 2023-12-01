@@ -63,14 +63,17 @@ struct March {
 };
 
 struct Render {
-    vec4 albedo_color;
     vec4 key_light_pos;
     vec4 key_light_color;
     vec4 shadow_power;
     vec4 sky_light_color;
+
     vec4 ambient_light_color;
     vec4 background_color;
     vec4 glow_color;
+    vec4 tbd0;
+
+    vec4 palette[4];
 };
 
 layout (std140,push_constant) readonly uniform Push {
@@ -87,5 +90,16 @@ layout (std140,binding = 0) readonly uniform Uniforms {
     March march;
     Render render;
 } uniforms;
+
+vec4 sample_palette(float f) {
+    float nf = 4.0 * f;
+    float r = fract(nf);
+    switch(uint(floor(nf)) & 3) {
+        case 0: return mix(uniforms.render.palette[0],uniforms.render.palette[1],r);
+        case 1: return mix(uniforms.render.palette[1],uniforms.render.palette[2],r);
+        case 2: return mix(uniforms.render.palette[2],uniforms.render.palette[3],r);
+        case 3: return mix(uniforms.render.palette[3],uniforms.render.palette[0],r);
+    }
+}
 
 #endif
