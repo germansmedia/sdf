@@ -1,7 +1,8 @@
 #ifndef _BASE_GLSL_
 #define _BASE_GLSL_
 
-#define PI 3.1415927
+#define PI 3.141592654
+#define OOPI 0.318309886
 
 #define ANISOTROPY_SQUARE 0
 #define ANISOTROPY_RECT2 1

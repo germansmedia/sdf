@@ -1,53 +1,7 @@
 // SDF - ray marching core
 // by Desmond Germans, 2023
 
-#include "base.glsl"
-
-#include "formulas/mandelbox.glsl"
-#include "formulas/menger3.glsl"
-#include "formulas/amazingbox.glsl"
-#include "formulas/amazingsurf.glsl"
-
-#define ITERATE(formula) \
-    if ((r >= uniforms.march.escape) || (iterations > uniforms.march.max_iterations)) { \
-        return r / abs(dr); \
-    } \
-    formula(v,dr,p); \
-    r = length(v); \
-    iterations++;
-
-
-// consult the fractal formulas
-float consult(in vec3 p,inout uint iterations) {
-    vec3 v = p;
-    float dr = 1.0;
-    float r = length(v);
-    iterations = 0;
-    ITERATE(amazingbox)
-    ITERATE(amazingsurf)
-    ITERATE(amazingbox)
-    ITERATE(amazingsurf)
-    ITERATE(menger3)
-    ITERATE(menger3)
-    ITERATE(menger3)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    ITERATE(amazingbox)
-    return r / abs(dr);
-}
+#include "consult.glsl"
 
 // march a single ray
 bool march_ray(
@@ -75,7 +29,7 @@ bool march_ray(
                 float h = -0.5 * variation;
                 r += h;
                 p += h * dp;
-                de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
+                //de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
                 de = consult(p,iterations);
                 variation = -h;
             }
@@ -85,7 +39,7 @@ bool march_ray(
             float last_de = de;
             r += de;
             p += de * dp;
-            de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
+            //de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
             de = consult(p,iterations);
             if (de > last_de + variation) {
                 de = last_de + variation;
