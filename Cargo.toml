@@ -1,8 +1,8 @@
 [package]
 name = "sdf"
 version = "0.1.0"
-authors = ["Desmond Germans, Ph.D <desmond@germansmedia.nl>"]
-edition = "2018"
+authors = ["Desmond Germans <desmond@germansmedia.nl>"]
+edition = "2021"
 
 [profile.dev]
 opt-level = 0
@@ -16,5 +16,8 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-nxr = { path = "../nxr" }
-macros = { path = "../nxr/macros" }
+build = { path = "../e/build" }
+macros = { path = "../e/macros" }
+base = { path = "../e/base" }
+gpu = { path = "../e/gpu" }
+hal = { path = "../e/hal" }

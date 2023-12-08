@@ -2,12 +2,12 @@
 // by Desmond Germans, 2023
 
 use {
-    nxr::*,
     std::{
         result::Result,
         sync::Arc,
         mem::size_of,
     },
+    crate::*,
 };
 
 pub const SIZE: usize = 2048;

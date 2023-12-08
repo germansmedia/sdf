@@ -87,7 +87,7 @@ void main() {
         vec3 p = origin + r * dir;
 
         // calculate normal
-        vec3 n = construct_normal(p,0.0001 * r);
+        vec3 n = construct_normal(p,0.00001 * r);
 
         // start lighting
         //vec3 albedo = uniforms.render.albedo_color.rgb;

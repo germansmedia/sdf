@@ -2,12 +2,12 @@
 // by Desmond Germans, 2023
 
 use {
-    crate::*,
     std::{
         result::Result,
         sync::Arc,
         mem::size_of,
     },
+    crate::*,
 };
 
 #[derive(Clone,Copy,Debug)]

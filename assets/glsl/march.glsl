@@ -23,17 +23,16 @@ float consult(in vec3 p,inout uint iterations) {
     float dr = 1.0;
     float r = length(v);
     iterations = 0;
-    ITERATE(amazingsurf)
+    ITERATE(amazingbox)
     ITERATE(amazingsurf)
     ITERATE(amazingbox)
+    ITERATE(amazingsurf)
     ITERATE(menger3)
     ITERATE(menger3)
-    ITERATE(mandelbox)
-    ITERATE(mandelbox)
-    ITERATE(mandelbox)
-    ITERATE(mandelbox)
-    ITERATE(mandelbox)
-    ITERATE(mandelbox)
+    ITERATE(menger3)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
+    ITERATE(amazingbox)
     ITERATE(amazingbox)
     ITERATE(amazingbox)
     ITERATE(amazingbox)

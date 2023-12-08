@@ -2,8 +2,6 @@
 // by Desmond Germans, 2023
 
 use {
-    nxr::*,
-    macros::*,
     std::{
         result::Result,
         sync::{
@@ -16,6 +14,10 @@ use {
             UNIX_EPOCH,
         },
     },
+    macros::*,
+    base::*,
+    gpu::*,
+    hal::*,
 };
 
 mod engine;
@@ -63,7 +65,7 @@ fn hex_to_vec(hex: u32) -> Vec4<f32> {
 
 fn generate_render() -> Render {
     let palette = &PALETTES[(random() & 15) as usize];
-    let (mut background_color,mut palette) = match random() & 3 {
+    let (mut background_color,palette) = match random() & 3 {
         0 => (hex_to_vec(palette[0]),[
             hex_to_vec(palette[1]),
             hex_to_vec(palette[2]),
