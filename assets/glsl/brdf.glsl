@@ -39,6 +39,33 @@ vec3 brdf(in vec3 n,in vec3 l,in vec3 v,in float metallic,in float roughness,in 
 /*
 scratch:
 
+F0 for non-metals (only white specular reflections):
+
+Quartz   0.04559
+Ice      0.01791
+Water    0.02037
+Alcohol  0.01996
+Glass    0.04
+Milk     0.02218
+Ruby     0.07727
+Crystal  0.11111
+Diamond  0.17197
+Skin     0.028
+
+F0 for metals (colored specular reflections):
+
+Silver     0.971519  0.959915  0.915324
+Aluminium  0.913183  0.921494  0.924524
+Gold       1         0.765557  0.336057
+Copper     0.955008  0.637527  0.538163
+Chromium   0.549585  0.556114  0.554256
+Nickel     0.659777  0.608679  0.525649
+Titanium   0.541931  0.496791  0.449419
+Cobalt     0.662124  0.654864  0.633732
+Platinum   0.672411  0.637331  0.585456
+
+
+
 rendering(V) = emitted(V) + integrate_over_hemisphere(BRDF(V,L) * radiance(L) * cos(theta) * domega)
 irradiance(L) = dE(L) = radiance(L) * cos(theta) * domega
 
