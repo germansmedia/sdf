@@ -16,7 +16,6 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-build = { path = "../e/build" }
 macros = { path = "../e/macros" }
 base = { path = "../e/base" }
 gpu = { path = "../e/gpu" }
