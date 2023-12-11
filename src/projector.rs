@@ -12,6 +12,12 @@ use {
 
 #[derive(Clone,Copy,Debug)]
 #[repr(C)]
+pub struct Push {
+    pub eye: u32,
+}
+
+#[derive(Clone,Copy,Debug)]
+#[repr(C)]
 struct Uniforms {
     matrix: Mat4x4<f32>,
     fovs: [Fov<f32>; 2],
@@ -97,9 +103,9 @@ impl Projector {
             );
         }
         let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<Push>())?;
-        let code = app.load_asset("assets","draw_equirect_vs.spirv")?;
+        let code = app.load_asset("assets","projector_equirect_vs.spirv")?;
         let vertex_shader = gpu.create_vertex_shader(&code)?;
-        let code = app.load_asset("assets","draw_equirect_fs.spirv")?;
+        let code = app.load_asset("assets","projector_equirect_fs.spirv")?;
         let fragment_shader = gpu.create_fragment_shader(&code)?;
         let graphics_pipeline = pipeline_layout.build_graphics_pipeline(&render_pass,&vertex_shader,&fragment_shader)
             .primitive_topology(PrimitiveTopology::TriangleFan)
@@ -121,7 +127,7 @@ impl Projector {
                 command_buffer.set_scissor(r);
                 command_buffer.bind_graphics_descriptor_set(&pipeline_layout,0,&descriptor_sets[i]);
                 command_buffer.bind_vertex_buffer(&generic_quad);
-                command_buffer.push_constants(&pipeline_layout,&Push { eye: i as u32,face: 0,anisotropy: EquirectAnisotropy::Square,y_offset: 0, });
+                command_buffer.push_constants(&pipeline_layout,&Push { eye: i as u32, });
                 command_buffer.begin_render_pass(&framebuffer,r);
                 command_buffer.draw(4,1,0,0);
                 command_buffer.end_render_pass();

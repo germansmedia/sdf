@@ -10,27 +10,25 @@ use {
     crate::*,
 };
 
-pub const SIZE: usize = 2048;
-
-const PHASE_FULL16X16: (u32,u32) = (0,0);
-const PHASE_RIGHT8X16: (u32,u32) = (8,8);
-const PHASE_BOTTOM8X8: [(u32,u32); 2] = [(8,0),(0,8),];
-const PHASE_RIGHT4X8: [(u32,u32); 4] = [(4,4),(12,12),(12,4),(4,12),];
-const PHASE_BOTTOM4X4: [(u32,u32); 8] = [(4,0),(12,8),(12,0),(4,8),(0,4),(8,12),(8,4),(0,12),];
-const PHASE_RIGHT2X4: [(u32,u32); 16] = [
+pub const PHASE_FULL16X16: (u32,u32) = (0,0);
+pub const PHASE_RIGHT8X16: (u32,u32) = (8,8);
+pub const PHASE_BOTTOM8X8: [(u32,u32); 2] = [(8,0),(0,8),];
+pub const PHASE_RIGHT4X8: [(u32,u32); 4] = [(4,4),(12,12),(12,4),(4,12),];
+pub const PHASE_BOTTOM4X4: [(u32,u32); 8] = [(4,0),(12,8),(12,0),(4,8),(0,4),(8,12),(8,4),(0,12),];
+pub const PHASE_RIGHT2X4: [(u32,u32); 16] = [
     (2,2),(10,10),(10,2),(2,10),(6,6),(14,14),(14,6),(6,14),(6,2),(14,10),(14,2),(6,10),(2,6),(10,14),(10,6),(2,14),
 ];
-const PHASE_BOTTOM2X2: [(u32,u32); 32] = [
+pub const PHASE_BOTTOM2X2: [(u32,u32); 32] = [
     (2,0),(10,8),(10,0),(2,8), (6,4),(14,12),(14,4),(6,12),(6,0),(14,8), (14,0),(6,8), (2,4),(10,12),(10,4),(2,12),
     (0,2),(8,10),(8,2), (0,10),(4,6),(12,14),(12,6),(4,14),(4,2),(12,10),(12,2),(4,10),(0,6),(8,14), (8,6), (0,14),
 ];
-const PHASE_RIGHT1X2: [(u32,u32); 64] = [
+pub const PHASE_RIGHT1X2: [(u32,u32); 64] = [
     (1,1),(9,9),  (9,1), (1,9), (5,5),(13,13),(13,5),(5,13),(5,1),(13,9), (13,1),(5,9), (1,5),(9,13), (9,5), (1,13),
     (3,3),(11,11),(11,3),(3,11),(7,7),(15,15),(15,7),(7,15),(7,3),(15,11),(15,3),(7,11),(3,7),(11,15),(11,7),(3,15),
     (3,1),(11,9), (11,1),(3,9), (7,5),(15,13),(15,5),(7,13),(7,1),(15,9), (15,1),(7,9), (3,5),(11,13),(11,5),(3,13),
     (1,3),(9,11), (9,3), (1,11),(5,7),(13,15),(13,7),(5,15),(5,3),(13,11),(13,3),(5,11),(1,7),(9,15), (9,7), (1,15),
 ];
-const PHASE_BOTTOM1X1: [(u32,u32); 128] = [
+pub const PHASE_BOTTOM1X1: [(u32,u32); 128] = [
     (1,0),(9,8),  (9,0), (1,8), (5,4),(13,12),(13,4),(5,12), (5,0),(13,8), (13,0),(5,8), (1,4),(9,12), (9,4), (1,12),
     (3,2),(11,10),(11,2),(3,10),(7,6),(15,14),(15,6),(7,14), (7,2),(15,10),(15,2),(7,10),(3,6),(11,14),(11,6),(3,14),
     (3,0),(11,8), (11,0),(3,8), (7,4),(15,12),(15,4),(7,12), (7,0),(15,8), (15,0),(7,8), (3,4),(11,12),(11,4),(3,12),
@@ -41,30 +39,12 @@ const PHASE_BOTTOM1X1: [(u32,u32); 128] = [
     (0,3),(8,11), (8,3),(0,11), (4,7),(12,15),(12,7),(4,15), (4,3),(12,11),(12,3),(4,11),(0,7),(8,15), (8,7), (0,15),
 ];
 
-#[allow(dead_code)]
-#[derive(Clone,Copy,Debug)]
-#[repr(u32)]
-pub enum ViewType {
-    Quad,
-    StereoQuad,
-    Cube,
-    StereoCube,
-    Cylinder,
-    StereoCylinder,
-    Equirect,
-    StereoEquirect,
-    Fisheye,
-    StereoFisheye,
-}
-
 #[derive(Clone,Copy,Debug)]
 #[repr(C)]
-pub struct ViewConfig {
-    pub width: u32,
-    pub height: u32,
-    pub type_: ViewType,
+pub struct Config {
+    pub size: Vec2<u32>,
     pub tbd0: u32,
-    pub fov: Fov<f32>,
+    pub tbd1: u32,
 }
 
 #[derive(Clone,Copy,Debug)]
@@ -84,40 +64,9 @@ pub enum Phase {
 #[derive(Clone,Copy,Debug)]
 #[repr(C)]
 pub struct Progress {
-    pub phase: Phase,
+    pub phase: Phase,  // VR viewer only
     pub offset: Vec2<u32>,
     pub tbd0: u32,
-}
-
-#[derive(Clone,Copy,Debug,PartialEq)]
-#[repr(C)]
-pub struct March {
-    pub pose: Mat4x4<f32>,
-    pub scale: f32,
-    pub horizon: f32,
-    pub escape: f32,
-    pub de_stop: f32,
-    pub de_stop_factor: f32,
-    pub max_steps: u32,
-    pub max_iterations: u32,
-    pub tbd0: u32,
-    pub forward_dir: Vec4<f32>,
-}
-
-#[derive(Clone,Copy,Debug,PartialEq)]
-#[repr(C)]
-pub struct Render {
-    pub key_light_pos: Vec4<f32>,
-    pub key_light_color: Vec4<f32>,
-    pub shadow_power: Vec4<f32>,
-    pub sky_light_color: Vec4<f32>,
-
-    pub ambient_light_color: Vec4<f32>,
-    pub background_color: Vec4<f32>,
-    pub glow_color: Vec4<f32>,
-    pub tbd0: Vec4<f32>,
-
-    pub palette: [Vec4<f32>; 4],
 }
 
 #[derive(Clone,Copy,Debug)]
@@ -139,7 +88,16 @@ pub struct Push {
     pub y_offset: u32,
 }
 
-pub enum EngineCommand {
+#[derive(Clone,Copy,Debug)]
+#[repr(C)]
+pub struct Uniforms {
+    pub config: Config,
+    pub progress: Progress,
+    pub march: March,
+    pub render: Render,
+}
+
+pub enum Command {
     Update(March,Render),
     Exit,
 }
@@ -150,30 +108,21 @@ pub enum Stage {
     Lighting,
 }
 
-pub enum EngineState {
+pub enum State {
     Idle,
     Rendering(Stage,Phase,usize),
     Exiting,
 }
 
-#[derive(Clone,Copy,Debug)]
-#[repr(C)]
-pub struct EngineUniforms {
-    pub view: ViewConfig,
-    pub progress: Progress,
-    pub march: March,
-    pub render: Render,
-}
-
-pub struct Engine {
+pub struct Viewer {
     _gpu: Arc<Gpu>,
     queue: Arc<Queue>,
 
     march: March,
     render: Render,
-    uniform_buffer: Arc<UniformBuffer<EngineUniforms>>,
+    uniform_buffer: Arc<UniformBuffer<Uniforms>>,
 
-    pub state: EngineState,
+    pub state: State,
 
     _dosi_image: Arc<Image2D>,
     _dosi_image_views: [Arc<Image2DView>; 2],
@@ -194,11 +143,11 @@ pub struct Engine {
     lighting_command_buffers: [Arc<CommandBuffer>; 2],
 }
 
-impl Engine {
+impl Viewer {
 
-    pub fn new(gpu: &Arc<Gpu>,depth_occlusion_code: &[u8],lighting_code: &[u8],rgba_image: &Arc<Image2D>,march: March,render: Render) -> Result<Engine,String> {
+    pub fn new(gpu: &Arc<Gpu>,depth_occlusion_code: &[u8],lighting_code: &[u8],rgba_image: &Arc<Image2D>,march: March,render: Render) -> Result<Viewer,String> {
 
-        // get engine thread queue
+        // get viewer thread queue
         let queue = gpu.queue(1)?;
 
         // transition image layout
@@ -227,13 +176,11 @@ impl Engine {
         let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<Push>())?;
 
         // create uniform buffers
-        let uniforms = EngineUniforms {
-            view: ViewConfig {
-                width: size.x as u32,
-                height: size.y as u32,
-                type_: ViewType::StereoEquirect,
+        let uniforms = Uniforms {
+            config: Config {
+                size: size.into(),
                 tbd0: 0,
-                fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
+                tbd1: 0,
             },
             progress: Progress {
                 phase: Phase::Full16x16,
@@ -288,8 +235,8 @@ impl Engine {
         ];
 
         // create rendering strips of varying anisotropy
-        let width_in_blocks = SIZE / 8;
-        let strip_height_in_pixels = SIZE / 32;
+        let width_in_blocks = rgba_image.size().x / 16;
+        let strip_height_in_pixels = rgba_image.size().y / 32;
         let strip_height_in_blocks = strip_height_in_pixels / 16;
         for i in 0..2 {
             depth_occlusion_command_buffers[i].begin()?;
@@ -340,7 +287,7 @@ impl Engine {
             lighting_command_buffers[i].end()?;
         }
 
-        Ok(Engine {
+        Ok(Viewer {
             _gpu: Arc::clone(&gpu),
             queue,
         
@@ -348,7 +295,7 @@ impl Engine {
             render,
             uniform_buffer,
 
-            state: EngineState::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0),
+            state: State::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0),
         
             _dosi_image: dosi_image,
             _dosi_image_views: dosi_image_views,
@@ -370,28 +317,28 @@ impl Engine {
         })
     }
 
-    pub fn process_command(&mut self,command: EngineCommand) -> Result<(),String> {
+    pub fn process_command(&mut self,command: Command) -> Result<(),String> {
         match command {
-            EngineCommand::Update(march,render) => {
+            Command::Update(march,render) => {
                 if march != self.march {
                     self.march = march;
                     self.render = render;
-                    self.state = EngineState::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0);
+                    self.state = State::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0);
                 }
                 if render != self.render {
                     self.render = render;
-                    self.state = EngineState::Rendering(Stage::Lighting,Phase::Full16x16,0);
+                    self.state = State::Rendering(Stage::Lighting,Phase::Full16x16,0);
                 }
             },
-            EngineCommand::Exit => {
-                self.state = EngineState::Exiting;
+            Command::Exit => {
+                self.state = State::Exiting;
             },
         }
         Ok(())
     }
 
     pub fn render(&mut self) -> Result<(),String> {
-        if let EngineState::Rendering(stage,phase,pass) = self.state {
+        if let State::Rendering(stage,phase,pass) = self.state {
             let offset = match phase {
                 Phase::Full16x16 => PHASE_FULL16X16,
                 Phase::Right8x16 => PHASE_RIGHT8X16,
@@ -405,13 +352,11 @@ impl Engine {
             };
             match stage {
                 Stage::DepthOcclusion => {
-                    self.uniform_buffer.write(&self.queue)?[0] = EngineUniforms {
-                        view: ViewConfig {
-                            width: self.rgba_image.size().x as u32,
-                            height: self.rgba_image.size().y as u32,
-                            type_: ViewType::StereoEquirect,
+                    self.uniform_buffer.write(&self.queue)?[0] = Uniforms {
+                        config: Config {
+                            size: self.rgba_image.size().into(),
                             tbd0: 0,
-                            fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
+                            tbd1: 0,
                         },
                         progress: Progress {
                             phase,
@@ -426,25 +371,23 @@ impl Engine {
                     }
                     self.queue.wait()?;
                     self.state = match phase {
-                        Phase::Full16x16 => EngineState::Rendering(Stage::DepthOcclusion,Phase::Right8x16,0),
-                        Phase::Right8x16 => EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom8x8,0),
-                        Phase::Bottom8x8 => if pass >= 1 { EngineState::Rendering(Stage::DepthOcclusion,Phase::Right4x8,0) } else { EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom8x8,pass + 1) },
-                        Phase::Right4x8 => if pass >= 3 { EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom4x4,0) } else { EngineState::Rendering(Stage::DepthOcclusion,Phase::Right4x8,pass + 1) },
-                        Phase::Bottom4x4 => if pass >= 7 { EngineState::Rendering(Stage::DepthOcclusion,Phase::Right2x4,0) } else { EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom4x4,pass + 1) },
-                        Phase::Right2x4 => if pass >= 15 { EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom2x2,0) } else { EngineState::Rendering(Stage::DepthOcclusion,Phase::Right2x4,pass + 1) },
-                        Phase::Bottom2x2 => if pass >= 31 { EngineState::Rendering(Stage::DepthOcclusion,Phase::Right1x2,0) } else { EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom2x2,pass + 1) },
-                        Phase::Right1x2 => if pass >= 63 { EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom1x1,0) } else { EngineState::Rendering(Stage::DepthOcclusion,Phase::Right1x2,pass + 1) },
-                        Phase::Bottom1x1 => if pass >= 127 { EngineState::Rendering(Stage::Lighting,Phase::Full16x16,0) } else { EngineState::Rendering(Stage::DepthOcclusion,Phase::Bottom1x1,pass + 1) },
+                        Phase::Full16x16 => State::Rendering(Stage::DepthOcclusion,Phase::Right8x16,0),
+                        Phase::Right8x16 => State::Rendering(Stage::DepthOcclusion,Phase::Bottom8x8,0),
+                        Phase::Bottom8x8 => if pass >= 1 { State::Rendering(Stage::DepthOcclusion,Phase::Right4x8,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Bottom8x8,pass + 1) },
+                        Phase::Right4x8 => if pass >= 3 { State::Rendering(Stage::DepthOcclusion,Phase::Bottom4x4,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Right4x8,pass + 1) },
+                        Phase::Bottom4x4 => if pass >= 7 { State::Rendering(Stage::DepthOcclusion,Phase::Right2x4,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Bottom4x4,pass + 1) },
+                        Phase::Right2x4 => if pass >= 15 { State::Rendering(Stage::DepthOcclusion,Phase::Bottom2x2,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Right2x4,pass + 1) },
+                        Phase::Bottom2x2 => if pass >= 31 { State::Rendering(Stage::DepthOcclusion,Phase::Right1x2,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Bottom2x2,pass + 1) },
+                        Phase::Right1x2 => if pass >= 63 { State::Rendering(Stage::DepthOcclusion,Phase::Bottom1x1,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Right1x2,pass + 1) },
+                        Phase::Bottom1x1 => if pass >= 127 { State::Rendering(Stage::Lighting,Phase::Full16x16,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Bottom1x1,pass + 1) },
                     };        
                 },
                 Stage::Lighting => {
-                    self.uniform_buffer.write(&self.queue)?[0] = EngineUniforms {
-                        view: ViewConfig {
-                            width: self.rgba_image.size().x as u32,
-                            height: self.rgba_image.size().y as u32,
-                            type_: ViewType::StereoEquirect,
+                    self.uniform_buffer.write(&self.queue)?[0] = Uniforms {
+                        config: Config {
+                            size: self.rgba_image.size().into(),
                             tbd0: 0,
-                            fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
+                            tbd1: 0,
                         },
                         progress: Progress {
                             phase,
@@ -459,15 +402,15 @@ impl Engine {
                     }
                     self.queue.wait()?;
                     self.state = match phase {
-                        Phase::Full16x16 => EngineState::Rendering(Stage::Lighting,Phase::Right8x16,0),
-                        Phase::Right8x16 => EngineState::Rendering(Stage::Lighting,Phase::Bottom8x8,0),
-                        Phase::Bottom8x8 => if pass >= 1 { EngineState::Rendering(Stage::Lighting,Phase::Right4x8,0) } else { EngineState::Rendering(Stage::Lighting,Phase::Bottom8x8,pass + 1) },
-                        Phase::Right4x8 => if pass >= 3 { EngineState::Rendering(Stage::Lighting,Phase::Bottom4x4,0) } else { EngineState::Rendering(Stage::Lighting,Phase::Right4x8,pass + 1) },
-                        Phase::Bottom4x4 => if pass >= 7 { EngineState::Rendering(Stage::Lighting,Phase::Right2x4,0) } else { EngineState::Rendering(Stage::Lighting,Phase::Bottom4x4,pass + 1) },
-                        Phase::Right2x4 => if pass >= 15 { EngineState::Rendering(Stage::Lighting,Phase::Bottom2x2,0) } else { EngineState::Rendering(Stage::Lighting,Phase::Right2x4,pass + 1) },
-                        Phase::Bottom2x2 => if pass >= 31 { EngineState::Rendering(Stage::Lighting,Phase::Right1x2,0) } else { EngineState::Rendering(Stage::Lighting,Phase::Bottom2x2,pass + 1) },
-                        Phase::Right1x2 => if pass >= 63 { EngineState::Rendering(Stage::Lighting,Phase::Bottom1x1,0) } else { EngineState::Rendering(Stage::Lighting,Phase::Right1x2,pass + 1) },
-                        Phase::Bottom1x1 => if pass >= 127 { EngineState::Idle } else { EngineState::Rendering(Stage::Lighting,Phase::Bottom1x1,pass + 1) },
+                        Phase::Full16x16 => State::Rendering(Stage::Lighting,Phase::Right8x16,0),
+                        Phase::Right8x16 => State::Rendering(Stage::Lighting,Phase::Bottom8x8,0),
+                        Phase::Bottom8x8 => if pass >= 1 { State::Rendering(Stage::Lighting,Phase::Right4x8,0) } else { State::Rendering(Stage::Lighting,Phase::Bottom8x8,pass + 1) },
+                        Phase::Right4x8 => if pass >= 3 { State::Rendering(Stage::Lighting,Phase::Bottom4x4,0) } else { State::Rendering(Stage::Lighting,Phase::Right4x8,pass + 1) },
+                        Phase::Bottom4x4 => if pass >= 7 { State::Rendering(Stage::Lighting,Phase::Right2x4,0) } else { State::Rendering(Stage::Lighting,Phase::Bottom4x4,pass + 1) },
+                        Phase::Right2x4 => if pass >= 15 { State::Rendering(Stage::Lighting,Phase::Bottom2x2,0) } else { State::Rendering(Stage::Lighting,Phase::Right2x4,pass + 1) },
+                        Phase::Bottom2x2 => if pass >= 31 { State::Rendering(Stage::Lighting,Phase::Right1x2,0) } else { State::Rendering(Stage::Lighting,Phase::Bottom2x2,pass + 1) },
+                        Phase::Right1x2 => if pass >= 63 { State::Rendering(Stage::Lighting,Phase::Bottom1x1,0) } else { State::Rendering(Stage::Lighting,Phase::Right1x2,pass + 1) },
+                        Phase::Bottom1x1 => if pass >= 127 { State::Idle } else { State::Rendering(Stage::Lighting,Phase::Bottom1x1,pass + 1) },
                     };        
                 },
             }

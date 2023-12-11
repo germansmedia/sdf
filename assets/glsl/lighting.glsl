@@ -1,20 +1,11 @@
-// SDF - lighting stage compute shader
+// SDF - lighting system
 // by Desmond Germans, 2023
 
-#version 450
+// palette lookup for albedo
+#include "palette.glsl"
 
-layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
-
-#include "progress.glsl"
-#include "march.glsl"
+// BRDF calculation
 #include "brdf.glsl"
-#include "render.glsl"
-
-// 0 = uniforms, see base.glsl
-
-layout (binding = 1,rgba32f) readonly uniform image2D dosi_image;
-
-layout (binding = 2) writeonly uniform image2D rgba_image;
 
 vec3 construct_normal(vec3 p,float h) {
     vec2 k = vec2(1,-1);
@@ -43,40 +34,8 @@ float shadow_attenuation(vec3 p,vec3 dp,float r_max) {
     return clamp(uniforms.render.shadow_power.a * float(closest),0.0,1.0);
 }
 
-void main() {
+vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir) {
 
-    // get block specification
-    ivec2 b;  // upper-left corner of block
-    vec2 c;  // center of pixel in upper-left corner of block
-    get_block_spec(b,c);
-
-    // calculate view direction that 
-    float t = 2.0 * PI * c.x / float(uniforms.view.width);
-    float f = PI - PI * c.y / float(uniforms.view.height);
-    float x = -sin(f) * sin(t);
-    float y = -cos(f);
-    float z = sin(f) * cos(t);
-
-    // transform by pose matrix
-    vec3 origin = (uniforms.march.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
-    vec3 view = (uniforms.march.pose * vec4(normalize(vec3(x,y,z)),1.0)).xyz;
-    vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
-
-    // adjust origin for eye
-#define HALF_IOD 0.003
-    vec3 dir = normalize(view - origin);
-    vec3 up_dir = normalize(up - origin);
-    vec3 eye_axis = cross(dir,up_dir);
-    if (push.eye == 0) {
-        origin -= HALF_IOD * uniforms.march.scale * eye_axis;
-    }
-    else {
-        origin += HALF_IOD * uniforms.march.scale * eye_axis;
-    }
-
-    // retrieve depth, occlusion, steps and iterations
-    ivec2 cp = ivec2(int(floor(c.x)),int(floor(c.y)));
-    vec4 dosi = imageLoad(dosi_image,cp);
     vec3 pixel = uniforms.render.background_color.rgb;
     if (dosi.y >= 0.0) {
 
@@ -129,9 +88,5 @@ void main() {
         pixel = mix(result,pixel,fog);
     }
 
-    draw_block(
-        rgba_image,
-        b,
-        vec4(pixel,1.0)
-    );
+    return pixel;
 }

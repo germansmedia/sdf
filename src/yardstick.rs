@@ -5,7 +5,6 @@ use {
     std::{
         result::Result,
         sync::Arc,
-        mem::size_of,
     },
     crate::*,
 };
@@ -16,12 +15,28 @@ struct Storage {
     depth: f32,
 }
 
+#[derive(Clone,Copy,Debug)]
+#[repr(C)]
+pub struct Config {
+    pub size: Vec2<u32>,
+    pub tbd0: u32,
+    pub tbd1: u32,
+}
+
+#[derive(Clone,Copy,Debug)]
+#[repr(C)]
+pub struct Uniforms {
+    pub config: Config,
+    pub march: March,
+    pub render: Render,
+}
+
 pub struct Yardstick {
     _app: Arc<App>,
     _gpu: Arc<Gpu>,
     queue: Arc<Queue>,
-    uniforms: EngineUniforms,
-    uniform_buffer: Arc<UniformBuffer<EngineUniforms>>,
+    uniforms: Uniforms,
+    uniform_buffer: Arc<UniformBuffer<Uniforms>>,
     storage: Storage,
     storage_buffer: Arc<StorageBuffer<Storage>>,
     _pipeline_layout: Arc<PipelineLayout>,
@@ -42,20 +57,13 @@ impl Yardstick {
             .uniform_buffer()
             .storage_buffer()
             .build()?;
-        let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],size_of::<Push>())?;
+        let pipeline_layout = gpu.create_pipeline_layout(&[&descriptor_set_layout],0)?;
         let size = rgba_image.size();
-        let uniforms = EngineUniforms {
-            view: ViewConfig {
-                width: size.x as u32,
-                height: size.y as u32,
-                type_: ViewType::StereoEquirect,
+        let uniforms = Uniforms {
+            config: Config {
+                size: size.into(),
                 tbd0: 0,
-                fov: Fov { l: 0.0,r: 0.0,b: 0.0,t: 0.0, },
-            },
-            progress: Progress {
-                phase: Phase::Full16x16,
-                offset: Vec2::ZERO,
-                tbd0: 0,
+                tbd1: 0,
             },
             march,
             render,
@@ -69,14 +77,13 @@ impl Yardstick {
             .uniform_buffer(&uniform_buffer)
             .storage_buffer(&storage_buffer)
             .build();
-        let code = app.load_asset("assets","measure_cs.spirv")?;
+        let code = app.load_asset("assets","yardstick.spirv")?;
         let measure_shader = gpu.create_compute_shader(&code)?;
         let measure_pipeline = pipeline_layout.create_compute_pipeline(&measure_shader)?;
         let command_buffer = queue.create_command_buffer()?;
         command_buffer.begin()?;
         command_buffer.bind_compute_pipeline(&measure_pipeline);
         command_buffer.bind_compute_descriptor_set(&pipeline_layout,0,&descriptor_set);
-        command_buffer.push_constants(&pipeline_layout,&Push { eye: 0,face: 0,anisotropy: EquirectAnisotropy::Square,y_offset: 0, });
         command_buffer.dispatch(1,1,1);
         command_buffer.wait_dispatch_write(&storage_buffer);
         command_buffer.end()?;

@@ -5,13 +5,19 @@
 
 layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 
-#include "progress.glsl"
+// base March and Render structs, uniforms and push constants
+#include "viewer_base.glsl"
+
+// ray marching code
 #include "march.glsl"
 
-// 0 = uniforms, see base.glsl
+// palette lookup for RGBA preview
+#include "palette.glsl"
 
+// output depth/occlusion/steps/iterations image
 layout (binding = 1) writeonly uniform image2D dosi_image;
 
+// output RGBA image
 layout (binding = 2) writeonly uniform image2D rgba_image;
 
 void main() {
@@ -21,9 +27,9 @@ void main() {
     vec2 c;  // center of pixel in upper-left corner of block
     get_block_spec(b,c);
 
-    // calculate view direction that 
-    float t = 2.0 * PI * c.x / float(uniforms.view.width);
-    float f = PI - PI * c.y / float(uniforms.view.height);
+    // calculate view direction
+    float t = 2.0 * PI * c.x / float(uniforms.config.width);
+    float f = PI - PI * c.y / float(uniforms.config.height);
     float x = -sin(f) * sin(t);
     float y = -cos(f);
     float z = sin(f) * cos(t);

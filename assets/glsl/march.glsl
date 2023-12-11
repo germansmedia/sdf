@@ -1,6 +1,7 @@
 // SDF - ray marching core
 // by Desmond Germans, 2023
 
+// consult the fractal
 #include "consult.glsl"
 
 // march a single ray

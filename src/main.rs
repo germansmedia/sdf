@@ -14,20 +14,24 @@ use {
             UNIX_EPOCH,
         },
     },
-    macros::*,
-    base::*,
-    gpu::*,
-    hal::*,
+    e_macros::*,
+    e_base::*,
+    e_gpu::*,
+    e_hal::*,
+    e_codec_image::*,
 };
 
-mod engine;
-use engine::*;
+mod base;
+use base::*;
 
+mod viewer;
+mod tiler;
 mod projector;
-use projector::*;
-
 mod yardstick;
-use yardstick::*;
+
+const VIEW_SIZE: usize = 2048;
+const TILE_SIZE: Vec2<u32> = Vec2 { x: 256,y: 256, };
+const TILE_COUNT: Vec2<u32> = Vec2 { x: 16,y: 9, };
 
 const FORWARD_SPEED: f32 = 0.02;
 const STRAFE_SPEED: f32 = 0.01;
@@ -53,7 +57,7 @@ const PALETTES: [[u32; 5]; 16] = [
 ];
 
 fn random() -> u32 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().subsec_nanos()
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().subsec_nanos() >> 3
 }
 
 fn hex_to_vec(hex: u32) -> Vec4<f32> {
@@ -64,7 +68,10 @@ fn hex_to_vec(hex: u32) -> Vec4<f32> {
 }
 
 fn generate_render() -> Render {
-    let palette = &PALETTES[(random() & 15) as usize];
+    let n = (random() & 15) as usize;
+    logd!("n = {}",n);
+    let palette = &PALETTES[n];
+
     let (mut background_color,palette) = match random() & 3 {
         0 => (hex_to_vec(palette[0]),[
             hex_to_vec(palette[1]),
@@ -113,7 +120,7 @@ fn generate_render() -> Render {
 app!(sdf2);
 fn main() -> Result<(),String> {
 
-    let app = App::new(2)?;
+    let app = App::new(3)?;
     let gpu = app.gpu();
     let main_view = app.main_view();
 
@@ -126,10 +133,10 @@ fn main() -> Result<(),String> {
         scale: 1.0,  // rendering/lighting scale
         horizon: 64.32,  // maximum distance
         escape: 20.0,  // escape distance
-        de_stop: 0.0001,  // "de_stop"
+        de_stop: 0.00005,  // "de_stop"
         de_stop_factor: 10.0,  // "de_stop_factor"
-        max_steps: 500,  // maximum number of path trace steps
-        max_iterations: 25,  // maximum number of iteractions
+        max_steps: 600,  // maximum number of path trace steps
+        max_iterations: 40,  // maximum number of iteractions
         tbd0: 0,
         forward_dir: Vec4::UNIT_Z,  // viewing direction (mainly for measurement and lighting)
     };
@@ -137,69 +144,116 @@ fn main() -> Result<(),String> {
     // rendering/lighting parameters
     let mut render = generate_render();
 
-    // the equirectangular image that the engine renders to and the projector shows
-    let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: SIZE * 2,y: SIZE, },2,1,1,ImageUsage::SampledStorage,AccessStyle::Gpu)?;
-    //let rgba_image = gpu.create_image2d::<u8>(ImageFormat::RGBA8SRGB,Vec2 { x: SIZE * 2,y: SIZE, },2,1,1,ImageUsage::SampledStorage,None)?;
+    // the equirectangular image that the viewer renders to and the projector shows
+    let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: VIEW_SIZE * 2,y: VIEW_SIZE, },2,1,1,ImageUsage::SampledStorage,AccessStyle::Gpu)?;
 
-    // start engine thread
-    let engine_gpu = Arc::clone(&gpu);
-    let depth_occlusion_code = app.load_asset("assets","depth_occlusion_cs.spirv")?;
-    let lighting_code = app.load_asset("assets","lighting_cs.spirv")?;
-    let engine_rgba_image = Arc::clone(&rgba_image);
-    let (tx,rx) = mpsc::channel();
-    let engine_thread = spawn(move || {
-        let mut engine = Engine::new(
-            &engine_gpu,
+    // start viewer thread
+    let viewer_gpu = Arc::clone(&gpu);
+    let depth_occlusion_code = app.load_asset("assets","viewer_depth_occlusion.spirv")?;
+    let lighting_code = app.load_asset("assets","viewer_lighting.spirv")?;
+    let viewer_rgba_image = Arc::clone(&rgba_image);
+    let (viewer_tx,viewer_rx) = mpsc::channel();
+    let viewer_thread = spawn(move || {
+        let mut viewer = viewer::Viewer::new(
+            &viewer_gpu,
             &depth_occlusion_code,
             &lighting_code,
-            &engine_rgba_image,
+            &viewer_rgba_image,
             march,
             render,
         )?;
         match {
             loop {
-                match engine.state {
-                    EngineState::Idle => {
-                        if let Ok(command) = rx.recv() {
-                            engine.process_command(command)?;
+                match viewer.state {
+                    viewer::State::Idle => {
+                        if let Ok(command) = viewer_rx.recv() {
+                            viewer.process_command(command)?;
                         }
                         else {
                             loge!("command receive error");
                             break;
                         }
                     },
-                    EngineState::Rendering(_,_,_) => {
-                        for command in rx.try_iter() {
-                            engine.process_command(command)?;
+                    viewer::State::Rendering(_,_,_) => {
+                        for command in viewer_rx.try_iter() {
+                            viewer.process_command(command)?;
                         }
                     },
-                    EngineState::Exiting => {
+                    viewer::State::Exiting => {
                         break;
                     },
                 }
-                engine.render()?;
+                viewer.render()?;
             }
             Result::<(),String>::Ok(())
         } {
             Ok(()) => { },
-            Err(error) => { loge!("render thread crashed ({})",error); },
+            Err(error) => { loge!("viewer thread crashed ({})",error); },
+        }
+        Result::<(),String>::Ok(())
+    });
+
+    // start tiler thread
+    let tiler_gpu = Arc::clone(&gpu);
+    let tiler_code = app.load_asset("assets","tiler.spirv")?;
+    let (tiler_tx,tiler_rx) = mpsc::channel();
+    let tiler_thread = spawn(move || {
+        let mut tiler = tiler::Tiler::new(
+            &tiler_gpu,
+            &tiler_code,
+            tiler::Config {
+                type_: tiler::Type::Quad,
+                flags: 0,
+                tile_size: TILE_SIZE,
+                tile_count: TILE_COUNT,
+                current_tile: Vec2::ZERO,
+                fov: Fov { l: -0.7,r: 0.7,b: -0.7,t: 0.7, },
+            },
+            march,
+            render,
+        )?;
+        match {
+            loop {
+                match tiler.state {
+                    tiler::State::Idle => {
+                        if let Ok(command) = tiler_rx.recv() {
+                            tiler.process_command(command)?;
+                        }
+                        else {
+                            loge!("command receive error");
+                            break;
+                        }
+                    },
+                    tiler::State::Rendering => {
+                        for command in tiler_rx.try_iter() {
+                            tiler.process_command(command)?;
+                        }
+                    },
+                    tiler::State::Exiting => {
+                        break;
+                    },
+                }
+                tiler.render()?;
+            }
+            Result::<(),String>::Ok(())
+        } {
+            Ok(()) => { },
+            Err(error) => { loge!("tiler thread crashed ({})",error); },
         }
         Result::<(),String>::Ok(())
     });
 
     // create projector
-    let mut projector = Projector::new(&app,&rgba_image)?;
+    let mut projector = projector::Projector::new(&app,&rgba_image)?;
 
     // create yardstick
-    let mut yardstick = Yardstick::new(&app,&rgba_image,march,render)?;
+    let mut yardstick = yardstick::Yardstick::new(&app,&rgba_image,march,render)?;
 
     // prepare XR actions
     let action_set = app.create_action_set("action_set")?;
-    //let action_exit = action_set.create_bool_action("exit","/user/hand/left/input/x/click")?;
-    //let action_next = action_set.create_bool_action("next","/user/hand/left/input/y/click")?;
-    //let action_navigate = action_set.create_vec2_action("navigate","/user/hand/left/input/thumbstick")?;
-    let action_exit = action_set.create_bool_action("exit","/user/hand/right/input/a/click")?;
-    let action_next = action_set.create_bool_action("next","/user/hand/right/input/b/click")?;
+    let action_photo = action_set.create_bool_action("photo","/user/hand/left/input/x/click")?;
+    let action_exit = action_set.create_bool_action("exit","/user/hand/left/input/y/click")?;
+    let action_next = action_set.create_bool_action("next","/user/hand/right/input/a/click")?;
     let action_navigate = action_set.create_vec2_action("navigate","/user/hand/right/input/thumbstick")?;
     app.attach_action_set(&action_set)?;
 
@@ -248,7 +302,24 @@ fn main() -> Result<(),String> {
                     let next = action_next.get_bool()?;
                     if next {
                         render = generate_render();
-                        tx.send(EngineCommand::Update(march,render)).unwrap();
+                        viewer_tx.send(viewer::Command::Update(march,render)).unwrap();
+                    }
+
+                    // take picture
+                    let photo = action_photo.get_bool()?;
+                    if photo {
+                        tiler_tx.send(tiler::Command::Execute(
+                            tiler::Config {
+                                type_: tiler::Type::Quad,
+                                flags: 0,
+                                tile_size: TILE_SIZE,
+                                tile_count: TILE_COUNT,
+                                current_tile: Vec2::ZERO,
+                                fov: Fov { l: -0.7,r: 0.7,b: -0.7,t: 0.7, },
+                            },
+                            march,
+                            render,
+                        )).unwrap();
                     }
 
                     // calculate new position from thumbstick
@@ -270,20 +341,21 @@ fn main() -> Result<(),String> {
                         if march.scale < 0.00001 {
                             march.scale = 0.00001;
                         }
-                        logd!("scale = {}",march.scale);
-    
+
                         // fly in viewing direction
                         pose.p += -FORWARD_SPEED * march.scale * nav.y * forward + STRAFE_SPEED * march.scale * nav.x * right;
                         march.pose = pose.into();
-                        tx.send(EngineCommand::Update(march,render)).unwrap();
+                        viewer_tx.send(viewer::Command::Update(march,render)).unwrap();
                     }
                 }
             },
         }
     }
 
-    let _ = tx.send(EngineCommand::Exit);
-    let _ = engine_thread.join();
+    let _ = viewer_tx.send(viewer::Command::Exit);
+    let _ = viewer_thread.join();
+    let _ = tiler_tx.send(tiler::Command::Exit);
+    let _ = tiler_thread.join();
 
     gpu.wait_idle();
 

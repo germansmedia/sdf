@@ -1,7 +1,50 @@
-// SDF - block progress drawing and equirect anisotropy
-// by Desmond Germans, 2023
+#ifndef _VIEWER_GLSL_
+#define _VIEWER_GLSL_
 
 #include "base.glsl"
+
+#define ANISOTROPY_SQUARE 0
+#define ANISOTROPY_RECT2 1
+#define ANISOTROPY_RECT4 2
+#define ANISOTROPY_RECT8 3
+#define ANISOTROPY_RECT16 4
+
+#define PHASE_FULL16X16 0
+#define PHASE_RIGHT8X16 1
+#define PHASE_BOTTOM8X8 2
+#define PHASE_RIGHT4X8  3
+#define PHASE_BOTTOM4X4 4
+#define PHASE_RIGHT2X4  5
+#define PHASE_BOTTOM2X2 6
+#define PHASE_RIGHT1X2  7
+#define PHASE_BOTTOM1X1 8
+
+struct Config {
+    uint width,height;
+    uint tbd0;
+    uint tbd1;
+};
+
+struct Progress {
+    uint phase;  // one of PHASE_* (only for VR viewer)
+    uint x,y;  // pixel offset of this block/pixel
+    uint tbd0;
+};
+
+layout (std140,push_constant) readonly uniform Push {
+    uint eye;
+    uint face;
+    uint anisotropy;
+    uint y_offset;
+} push;
+
+layout (std140,binding = 0) readonly uniform Uniforms {
+    Config config;
+    Progress progress;
+    // formula params
+    March march;
+    Render render;
+} uniforms;
 
 void get_block_spec(out ivec2 b,out vec2 c) {
     switch (push.anisotropy) {
@@ -145,3 +188,5 @@ void draw_block(
             break;
     }
 }
+
+#endif

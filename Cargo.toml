@@ -16,7 +16,8 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-macros = { path = "../e/macros" }
-base = { path = "../e/base" }
-gpu = { path = "../e/gpu" }
-hal = { path = "../e/hal" }
+e_macros = { path = "../e/macros",package = "macros" }
+e_base = { path = "../e/base",package = "base" }
+e_gpu = { path = "../e/gpu",package = "gpu" }
+e_hal = { path = "../e/hal",package = "hal" }
+e_codec_image = { path = "../e/codec_image",package = "codec_image" }

@@ -14,9 +14,6 @@ layout (std140,binding = 0) uniform Uniforms {
 
 layout (std140,push_constant) uniform Push {
     uint eye;
-    uint face;
-    uint anisotropy;
-    uint y_offset;
 } push;
 
 void main() {

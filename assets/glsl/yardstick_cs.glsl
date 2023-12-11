@@ -5,10 +5,26 @@
 
 layout (local_size_x = 1,local_size_y = 1,local_size_z = 1) in;
 
+// base March and Render structs
+#include "base.glsl"
+
+// uniforms and push constants
+struct Config {
+    uint width,height;
+    uint tbd0;
+    uint tbd1;
+};
+
+layout (std140,binding = 0) readonly uniform Uniforms {
+    Config config;
+    March march;
+    Render render;
+} uniforms;
+
+// ray marching code
 #include "march.glsl"
 
-// 0 = uniforms, see base.glsl
-
+// output storage buffer
 layout (binding = 1) writeonly buffer Buffer {
     float depth;
 } storage;
