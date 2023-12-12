@@ -41,9 +41,7 @@ layout (std140,push_constant) readonly uniform Push {
 layout (std140,binding = 0) readonly uniform Uniforms {
     Config config;
     Progress progress;
-    // formula params
-    March march;
-    Render render;
+    Params params;
 } uniforms;
 
 void get_block_spec(out ivec2 b,out vec2 c) {

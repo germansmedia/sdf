@@ -35,19 +35,19 @@ void main() {
     float z = sin(f) * cos(t);
 
     // transform by pose matrix
-    vec3 origin = (uniforms.march.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
-    vec3 view = (uniforms.march.pose * vec4(normalize(vec3(x,y,z)),1.0)).xyz;
-    vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
+    vec3 origin = (uniforms.params.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
+    vec3 view = (uniforms.params.pose * vec4(normalize(vec3(x,y,z)),1.0)).xyz;
+    vec3 up = (uniforms.params.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
 
     // adjust origin for eye
     vec3 dir = view - origin;
     vec3 up_dir = up - origin;
     vec3 eye_axis = cross(dir,up_dir);
     if (push.eye == 0) {
-        origin -= 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
+        origin -= 0.5 * uniforms.params.iod * uniforms.params.scale * eye_axis;
     }
     else {
-        origin += 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
+        origin += 0.5 * uniforms.params.iod * uniforms.params.scale * eye_axis;
     }
 
     // march the ray
@@ -57,15 +57,15 @@ void main() {
     draw_block(dosi_image,b,dosi);
 
     // draw RGBA preview without lights
-    vec3 pixel = uniforms.render.background_color.rgb;
+    vec3 pixel = uniforms.params.background_color.rgb;
     if (dosi.y > 0.0) {
         float r = dosi.x;
-        float ndist = r / (uniforms.march.scale * uniforms.march.horizon);
+        float ndist = r / (uniforms.params.scale * uniforms.params.horizon);
         float occlusion = pow(dosi.y,16.0);
         vec3 albedo = sample_palette(0.1 * dosi.w).rgb;
-        vec3 ambient_result = uniforms.render.ambient_light_color.rgb * albedo;
+        vec3 ambient_result = uniforms.params.ambient_light_color.rgb * albedo;
         vec3 result = ambient_result * occlusion;
-        float fog = clamp(16.0 * uniforms.render.background_color.a * ndist,0.0,1.0);
+        float fog = clamp(16.0 * uniforms.params.background_color.a * ndist,0.0,1.0);
         pixel = mix(result,pixel,fog);
     }
     draw_block(rgba_image,b,vec4(pixel,1.0));

@@ -33,19 +33,19 @@ void main() {
     float z = sin(f) * cos(t);
 
     // transform by pose matrix
-    vec3 origin = (uniforms.march.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
-    vec3 view = (uniforms.march.pose * vec4(normalize(vec3(x,y,z)),1.0)).xyz;
-    vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
+    vec3 origin = (uniforms.params.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
+    vec3 view = (uniforms.params.pose * vec4(normalize(vec3(x,y,z)),1.0)).xyz;
+    vec3 up = (uniforms.params.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
 
     // adjust origin for eye
     vec3 dir = normalize(view - origin);
     vec3 up_dir = normalize(up - origin);
     vec3 eye_axis = cross(dir,up_dir);
     if (push.eye == 0) {
-        origin -= 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
+        origin -= 0.5 * uniforms.params.iod * uniforms.params.scale * eye_axis;
     }
     else {
-        origin += 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
+        origin += 0.5 * uniforms.params.iod * uniforms.params.scale * eye_axis;
     }
 
     // retrieve depth, occlusion, steps and iterations

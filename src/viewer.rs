@@ -93,12 +93,11 @@ pub struct Push {
 pub struct Uniforms {
     pub config: Config,
     pub progress: Progress,
-    pub march: March,
-    pub render: Render,
+    pub params: Params,
 }
 
 pub enum Command {
-    Update(March,Render),
+    Update(Params),
     Exit,
 }
 
@@ -118,8 +117,7 @@ pub struct Viewer {
     _gpu: Arc<Gpu>,
     queue: Arc<Queue>,
 
-    march: March,
-    render: Render,
+    params: Params,
     uniform_buffer: Arc<UniformBuffer<Uniforms>>,
 
     pub state: State,
@@ -145,7 +143,7 @@ pub struct Viewer {
 
 impl Viewer {
 
-    pub fn new(gpu: &Arc<Gpu>,depth_occlusion_code: &[u8],lighting_code: &[u8],rgba_image: &Arc<Image2D>,march: March,render: Render) -> Result<Viewer,String> {
+    pub fn new(gpu: &Arc<Gpu>,depth_occlusion_code: &[u8],lighting_code: &[u8],rgba_image: &Arc<Image2D>,params: Params) -> Result<Viewer,String> {
 
         // get viewer thread queue
         let queue = gpu.queue(1)?;
@@ -187,8 +185,7 @@ impl Viewer {
                 offset: Vec2::ZERO,
                 tbd0: 0,
             },
-            march,
-            render,
+            params,
         };
         let uniform_buffer = gpu.create_uniform_buffer(&queue,AccessStyle::Shared,&[uniforms])?;
 
@@ -291,8 +288,7 @@ impl Viewer {
             _gpu: Arc::clone(&gpu),
             queue,
         
-            march,
-            render,
+            params,
             uniform_buffer,
 
             state: State::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0),
@@ -319,15 +315,10 @@ impl Viewer {
 
     pub fn process_command(&mut self,command: Command) -> Result<(),String> {
         match command {
-            Command::Update(march,render) => {
-                if march != self.march {
-                    self.march = march;
-                    self.render = render;
+            Command::Update(params) => {
+                if params != self.params {
+                    self.params = params;
                     self.state = State::Rendering(Stage::DepthOcclusion,Phase::Full16x16,0);
-                }
-                if render != self.render {
-                    self.render = render;
-                    self.state = State::Rendering(Stage::Lighting,Phase::Full16x16,0);
                 }
             },
             Command::Exit => {
@@ -363,8 +354,7 @@ impl Viewer {
                             offset: Vec2 { x: offset.0,y: offset.1, },
                             tbd0: 0,
                         },
-                        march: self.march,
-                        render: self.render,
+                        params: self.params,
                     };
                     for i in 0..2 {
                         self.queue.submit(&self.depth_occlusion_command_buffers[i],None,None)?;
@@ -394,8 +384,7 @@ impl Viewer {
                             offset: Vec2 { x: offset.0,y: offset.1, },
                             tbd0: 0,
                         },
-                        march: self.march,
-                        render: self.render,
+                        params: self.params,
                     };
                     for i in 0..2 {
                         self.queue.submit(&self.lighting_command_buffers[i],None,None)?;

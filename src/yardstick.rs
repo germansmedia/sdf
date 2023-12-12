@@ -27,8 +27,7 @@ pub struct Config {
 #[repr(C)]
 pub struct Uniforms {
     pub config: Config,
-    pub march: March,
-    pub render: Render,
+    pub params: Params,
 }
 
 pub struct Yardstick {
@@ -49,7 +48,7 @@ pub struct Yardstick {
 
 impl Yardstick {
 
-    pub fn new(app: &Arc<App>,rgba_image: &Arc<Image2D>,march: March,render: Render,) -> Result<Yardstick,String> {
+    pub fn new(app: &Arc<App>,rgba_image: &Arc<Image2D>,params: Params) -> Result<Yardstick,String> {
 
         let gpu = app.gpu();
         let queue = gpu.queue(0)?;
@@ -65,8 +64,7 @@ impl Yardstick {
                 tbd0: 0,
                 tbd1: 0,
             },
-            march,
-            render,
+            params,
         };
         let uniform_buffer = gpu.create_uniform_buffer(&queue,AccessStyle::Shared,&[uniforms])?;
         let storage = Storage {
@@ -104,8 +102,8 @@ impl Yardstick {
         })
     }
 
-    pub fn measure_depth(&mut self,march: &March) -> Result<f32,String> {
-        self.uniforms.march = *march;
+    pub fn measure_depth(&mut self,params: &Params) -> Result<f32,String> {
+        self.uniforms.params = *params;
         self.uniform_buffer.write(&self.queue)?[0] = self.uniforms;
         self.queue.submit(&self.command_buffer,None,None)?;
         self.queue.wait()?;

@@ -31,8 +31,8 @@ mod yardstick;
 
 const FOV_ANGLE: f32 = 0.5;
 
-const VIEW_SIZE: usize = 1024;
-const TILE_SIZE: Vec2<u32> = Vec2 { x: 128,y: 128, };
+const VIEW_SIZE: usize = 512;
+const TILE_SIZE: Vec2<u32> = Vec2 { x: 64,y: 64, };
 const TILE_COUNT: Vec2<u32> = Vec2 { x: 16,y: 9, };
 
 const FORWARD_SPEED: f32 = 0.02;
@@ -69,7 +69,7 @@ fn hex_to_vec(hex: u32) -> Vec4<f32> {
     Vec4 { x: r,y: g,z: b,w: 1.0, }
 }
 
-fn generate_render() -> Render {
+fn generate_params() -> Params {
     let n = (random() & 15) as usize;
     logd!("n = {}",n);
     let palette = &PALETTES[n];
@@ -101,17 +101,35 @@ fn generate_render() -> Render {
         ]),
         _ => panic!("huh... interesting..."),
     };
-    background_color.w = 0.4 * (((random() & 32) as f32) / 31.0);
-    Render {
-        key_light_pos: Vec4 { x: -10.0,y: 20.0,z: 30.0, w: 1.0, },  // key light position in fractal space
-        key_light_color: Vec4 { x: 1.1,y: 1.2,z: 0.9, w: 1.0, },  // key light color
-        shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },  // shadow RGB power (old film effect)
-        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },  // sky light color
-        ambient_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },  // ambient light color
-        background_color,  // background color and fog multiplier
-        glow_color: Vec4 { x: 0.1,y: 0.2,z: 0.2,w: 0.4, },  // proximity glow color and intensity
-        tbd0: Vec4::ZERO,
-        palette,
+    background_color.w = 0.4 * (((random() & 31) as f32) / 31.0);
+    Params {
+        pose: Pose::ONE.into(),
+        forward_dir: Vec4::UNIT_Z,
+        key_light_pos: Vec4 { x: -10.0,y: 20.0,z: 30.0, w: 1.0, },
+        key_light_color: Vec4 { x: 1.2,y: 0.9,z: 0.7,w: 1.0, },
+        shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },
+        sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },
+        ambient_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },
+        background_color,
+        glow_color: Vec4 { x: 0.1,y: 0.2,z: 0.2,w: 0.4, },
+        palette: [
+            palette[0],
+            palette[1],
+            palette[2],
+            palette[3],
+            palette[0],
+            palette[1],
+            palette[2],
+            palette[3],
+        ],
+        scale: 1.0,
+        horizon: 100.0,
+        escape: 20.0,
+        de_stop: 0.00005,
+        max_steps: 600,
+        max_iterations: 40,
+        iod: 0.03,
+        tbd0: 0,
     }
 }
 
@@ -125,22 +143,15 @@ fn main() -> Result<(),String> {
     // pose inside fractal space
     let mut pose = Pose { p: Vec3 { x: 0.0,y: 0.0,z: 10.0, },o: Quat::ONE, };  // camera relative to fractal
 
-    // ray marching parameters
-    let mut march = March {
-        pose: pose.into(),  // pose in fractal space
-        scale: 1.0,  // rendering/lighting scale
-        horizon: 64.32,  // unscaled maximum distance
-        escape: 20.0,  // escape distance
-        de_stop: 0.00005,  // unscaled "de_stop"
-        de_stop_factor: 10.0,  // unscaled "de_stop_factor"
-        max_steps: 600,  // maximum number of path trace steps
-        max_iterations: 40,  // maximum number of iteractions
-        iod: 0.03,  // unscaled distance between left and right eyes
-        forward_dir: Vec4::UNIT_Z,  // viewing direction (mainly for measurement and lighting)
-    };
+    // parameters
+    let mut params = generate_params();
+    params.pose = pose.into();
 
-    // rendering/lighting parameters
-    let mut render = generate_render();
+    // keyframes
+    let mut keyframes = [
+        params,
+        params,
+    ];
 
     // the equirectangular image that the viewer renders to and the projector shows
     let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: VIEW_SIZE * 2,y: VIEW_SIZE, },2,1,1,ImageUsage::SampledStorage,AccessStyle::Gpu)?;
@@ -157,8 +168,7 @@ fn main() -> Result<(),String> {
             &depth_occlusion_code,
             &lighting_code,
             &viewer_rgba_image,
-            march,
-            render,
+            params,
         )?;
         match {
             loop {
@@ -210,8 +220,7 @@ fn main() -> Result<(),String> {
                     Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },
                 ],
             },
-            march,
-            render,
+            params,
         )?;
         match {
             loop {
@@ -225,7 +234,7 @@ fn main() -> Result<(),String> {
                             break;
                         }
                     },
-                    tiler::State::Rendering => {
+                    tiler::State::RenderingPhoto | tiler::State::RenderingVideo => {
                         for command in tiler_rx.try_iter() {
                             tiler.process_command(command)?;
                         }
@@ -248,7 +257,7 @@ fn main() -> Result<(),String> {
     let mut projector = projector::Projector::new(&app,&rgba_image)?;
 
     // create yardstick
-    let mut yardstick = yardstick::Yardstick::new(&app,&rgba_image,march,render)?;
+    let mut yardstick = yardstick::Yardstick::new(&app,&rgba_image,params)?;
 
     // prepare XR actions
     let action_set = app.create_action_set("action_set")?;
@@ -262,6 +271,7 @@ fn main() -> Result<(),String> {
     let mut is_running = true;
     let mut photo_pressed = false;
     let mut next_pressed = false;
+    let mut first_recorded = false;
     while is_running {
 
         app.flush().into_iter().for_each(|(_,event)| {
@@ -304,17 +314,49 @@ fn main() -> Result<(),String> {
                     // generate new fractal
                     let next = action_next.get_bool()?;
                     if next && !next_pressed {
-                        render = generate_render();
-                        viewer_tx.send(viewer::Command::Update(march,render)).unwrap();
+                        params = generate_params();
+                        params.pose = pose.into();
+                        viewer_tx.send(viewer::Command::Update(params)).unwrap();
                     }
                     next_pressed = next;
 
-                    // take picture
+                    // take clip
                     let photo = action_photo.get_float()? > 0.8;
                     if photo && !photo_pressed {
-                        let mut photo_march = march;
                         let rotation = Mat4x4::<f32>::from(projector.head_orientation());
-                        photo_march.pose = march.pose * rotation;
+                        if !first_recorded {
+                            keyframes[0] = params;
+                            keyframes[0].pose *= rotation;
+                            first_recorded = true;
+                            logd!("from here...");
+                        }
+                        else {
+                            keyframes[1] = params;
+                            keyframes[1].pose *= rotation;
+                            logd!("...to here");
+                            tiler_tx.send(
+                                tiler::Command::Video(
+                                    tiler::Config {
+                                        type_: tiler::Type::Quad,
+                                        flags: 0,
+                                        tile_size: TILE_SIZE,
+                                        tile_count: TILE_COUNT,
+                                        current_tile: Vec2::ZERO,
+                                        fovs: [
+                                            Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },
+                                            Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },        
+                                        ],
+                                    },
+                                    keyframes[0],
+                                    keyframes[1],
+                                )
+                            ).unwrap();
+                            first_recorded = false;
+                        }
+
+                        /*
+                        let mut photo_params = params;
+                        photo_params.pose *= rotation;
                         tiler_tx.send(tiler::Command::Execute(
                             tiler::Config {
                                 type_: tiler::Type::Quad,
@@ -327,9 +369,9 @@ fn main() -> Result<(),String> {
                                     Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },
                                 ],
                             },
-                            photo_march,
-                            render,
+                            photo_params,
                         )).unwrap();
+                        */
                     }
                     photo_pressed = photo;
 
@@ -343,20 +385,20 @@ fn main() -> Result<(),String> {
                         let right = rotation * Vec3::<f32>::UNIT_X;
 
                         // measure distance and adjust scale factor
-                        march.pose = pose.into();
-                        march.forward_dir = Vec4 { x: -forward.x,y: -forward.y,z: -forward.z,w: 0.0, };
-                        march.scale = yardstick.measure_depth(&march)?;
-                        if march.scale > 2.0 {
-                            march.scale = 2.0;
+                        //params.pose = pose.into();
+                        params.forward_dir = Vec4 { x: -forward.x,y: -forward.y,z: -forward.z,w: 0.0, };
+                        params.scale = yardstick.measure_depth(&params)?;
+                        if params.scale > 2.0 {
+                            params.scale = 2.0;
                         }
-                        if march.scale < 0.00001 {
-                            march.scale = 0.00001;
+                        if params.scale < 0.00001 {
+                            params.scale = 0.00001;
                         }
 
                         // fly in viewing direction
-                        pose.p += -FORWARD_SPEED * march.scale * nav.y * forward + STRAFE_SPEED * march.scale * nav.x * right;
-                        march.pose = pose.into();
-                        viewer_tx.send(viewer::Command::Update(march,render)).unwrap();
+                        pose.p += -FORWARD_SPEED * params.scale * nav.y * forward + STRAFE_SPEED * params.scale * nav.x * right;
+                        params.pose = pose.into();
+                        viewer_tx.send(viewer::Command::Update(params)).unwrap();
                     }
                 }
             },

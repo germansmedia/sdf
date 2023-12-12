@@ -1,4 +1,12 @@
-vec3 brdf(in vec3 n,in vec3 l,in vec3 v,in float metallic,in float roughness,in vec3 albedo,in float reflectance) {
+vec3 brdf(
+    in vec3 n,
+    in vec3 l,
+    in vec3 v,
+    in float metallic,
+    in float roughness,
+    in vec3 albedo,
+    in float reflectance
+) {
     
     vec3 h = normalize(l + v);
     float nl = clamp(dot(n,l),0.0,1.0);

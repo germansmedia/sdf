@@ -22,5 +22,4 @@ void main() {
 
     // lookup
     pixel = vec4(texture(image,vec2(u,v)).rgb,1.0);
-    //pixel = vec4(dir,1.0);
 }

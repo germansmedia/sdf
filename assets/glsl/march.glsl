@@ -12,35 +12,35 @@ bool march_ray(
     out uint steps,  // how many steps were taken
     out uint iterations  // how many iterations were needed
 ) {
-    float closest = uniforms.march.horizon;
+    float closest = uniforms.params.horizon;
     steps = 0;
     r = 0.0;
-    float de_stop = uniforms.march.de_stop;
+    float de_stop = uniforms.params.de_stop;
     bool hit = false;
     iterations = 0;
     float de = consult(p,iterations);
-    if ((iterations > uniforms.march.max_iterations) || (de < de_stop)) {
+    if ((iterations > uniforms.params.max_iterations) || (de < de_stop)) {
         r = de;
         return true;
     }
     else {
         float variation = de;
-        while (r < uniforms.march.horizon) {
-            if (iterations > uniforms.march.max_iterations) {
+        while (r < uniforms.params.horizon) {
+            if (iterations > uniforms.params.max_iterations) {
                 float h = -0.5 * variation;
                 r += h;
                 p += h * dp;
-                //de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
+                //de_stop = uniforms.params.de_stop * (1.0 + uniforms.params.de_stop_factor * r);
                 de = consult(p,iterations);
                 variation = -h;
             }
-            if ((iterations > uniforms.march.max_iterations) || (de < de_stop)) {
+            if ((iterations > uniforms.params.max_iterations) || (de < de_stop)) {
                 return true;
             }
             float last_de = de;
             r += de;
             p += de * dp;
-            //de_stop = uniforms.march.de_stop * (1.0 + uniforms.march.de_stop_factor * r);
+            //de_stop = uniforms.params.de_stop * (1.0 + uniforms.params.de_stop_factor * r);
             de = consult(p,iterations);
             if (de > last_de + variation) {
                 de = last_de + variation;
@@ -62,7 +62,7 @@ float measure_depth(in vec3 p,in vec3 dp) {
         return r;
     }
     else {
-        return uniforms.march.horizon;
+        return uniforms.params.horizon;
     }
 }
 
@@ -72,10 +72,10 @@ vec4 process_dosi(vec3 p,vec3 dp) {
     uint steps;
     uint iterations;
     if (march_ray(p,dp,r,steps,iterations)) {
-        float occlusion = 1.0 - clamp(float(steps) / float(uniforms.march.max_steps),0.0,1.0);
+        float occlusion = 1.0 - clamp(float(steps) / float(uniforms.params.max_steps),0.0,1.0);
         return vec4(r,occlusion,float(steps),float(iterations));
     }
     else {
-        return vec4(uniforms.march.horizon,-1.0,0.0,0.0);
+        return vec4(uniforms.params.horizon,-1.0,0.0,0.0);
     }
 }

@@ -17,8 +17,7 @@ struct Config {
 
 layout (std140,binding = 0) readonly uniform Uniforms {
     Config config;
-    March march;
-    Render render;
+    Params params;
 } uniforms;
 
 // ray marching code
@@ -32,8 +31,8 @@ layout (binding = 1) writeonly buffer Buffer {
 void main() {
 
     // get directions
-    vec3 origin = (uniforms.march.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
-    vec3 forward = (uniforms.march.pose * vec4(uniforms.march.forward_dir.xyz,1.0)).xyz;
+    vec3 origin = (uniforms.params.pose * vec4(0.0,0.0,0.0,1.0)).xyz;
+    vec3 forward = (uniforms.params.pose * vec4(uniforms.params.forward_dir.xyz,1.0)).xyz;
     vec3 dir = normalize(forward - origin);
 
     // measure distances
