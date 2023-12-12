@@ -9,14 +9,14 @@ struct March {
     mat4 pose;  // pose inside fractal space
 
     float scale;  // scale factor
-    float horizon;  // furthest horizon
+    float horizon;  // unscaled furthest horizon
     float escape;  // escape value
-    float de_stop;  // MB3D de_stop
+    float de_stop;  // unscaled MB3D de_stop
 
-    float de_stop_factor;  // MB3D de_stop_factor
+    float de_stop_factor;  // unscaled MB3D de_stop_factor
     uint max_steps;  // maximum number of marching steps
     uint max_iterations;  // maximum number of iterations
-    uint tbd0;
+    float iod;  // unscaled distance between left and right eyes
 
     vec4 forward_dir;  // view direction (based on head orientation, used for distance measurement only)
 };

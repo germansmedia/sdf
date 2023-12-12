@@ -47,7 +47,7 @@ vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir) {
         vec3 p = origin + r * dir;
 
         // calculate normal
-        vec3 n = construct_normal(p,0.00001 * r);
+        vec3 n = construct_normal(p,0.0001 * r);
 
         // start lighting
         //vec3 albedo = uniforms.render.albedo_color.rgb;
@@ -55,7 +55,7 @@ vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir) {
 
         float metallic = 0.0;
         float roughness = 0.4;
-        float reflectance = 0.8;
+        float reflectance = 0.2;
 
         // key light
         vec3 dkey_light = uniforms.render.key_light_pos.xyz - p;

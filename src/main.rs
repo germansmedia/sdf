@@ -29,8 +29,10 @@ mod tiler;
 mod projector;
 mod yardstick;
 
-const VIEW_SIZE: usize = 2048;
-const TILE_SIZE: Vec2<u32> = Vec2 { x: 256,y: 256, };
+const FOV_ANGLE: f32 = 0.5;
+
+const VIEW_SIZE: usize = 1024;
+const TILE_SIZE: Vec2<u32> = Vec2 { x: 128,y: 128, };
 const TILE_COUNT: Vec2<u32> = Vec2 { x: 16,y: 9, };
 
 const FORWARD_SPEED: f32 = 0.02;
@@ -99,10 +101,6 @@ fn generate_render() -> Render {
         ]),
         _ => panic!("huh... interesting..."),
     };
-    let att = ((random() & 32) as f32) / 31.0;
-    background_color.x *= att;
-    background_color.y *= att;
-    background_color.z *= att;
     background_color.w = 0.4 * (((random() & 32) as f32) / 31.0);
     Render {
         key_light_pos: Vec4 { x: -10.0,y: 20.0,z: 30.0, w: 1.0, },  // key light position in fractal space
@@ -131,13 +129,13 @@ fn main() -> Result<(),String> {
     let mut march = March {
         pose: pose.into(),  // pose in fractal space
         scale: 1.0,  // rendering/lighting scale
-        horizon: 64.32,  // maximum distance
+        horizon: 64.32,  // unscaled maximum distance
         escape: 20.0,  // escape distance
-        de_stop: 0.00005,  // "de_stop"
-        de_stop_factor: 10.0,  // "de_stop_factor"
+        de_stop: 0.00005,  // unscaled "de_stop"
+        de_stop_factor: 10.0,  // unscaled "de_stop_factor"
         max_steps: 600,  // maximum number of path trace steps
         max_iterations: 40,  // maximum number of iteractions
-        tbd0: 0,
+        iod: 0.03,  // unscaled distance between left and right eyes
         forward_dir: Vec4::UNIT_Z,  // viewing direction (mainly for measurement and lighting)
     };
 
@@ -203,11 +201,14 @@ fn main() -> Result<(),String> {
             &tiler_code,
             tiler::Config {
                 type_: tiler::Type::Quad,
-                flags: 0,
+                flags: tiler::TILER_FLAGS_STEREO,
                 tile_size: TILE_SIZE,
                 tile_count: TILE_COUNT,
                 current_tile: Vec2::ZERO,
-                fov: Fov { l: -0.7,r: 0.7,b: -0.7,t: 0.7, },
+                fovs: [
+                    Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },
+                    Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },
+                ],
             },
             march,
             render,
@@ -251,14 +252,16 @@ fn main() -> Result<(),String> {
 
     // prepare XR actions
     let action_set = app.create_action_set("action_set")?;
-    let action_photo = action_set.create_bool_action("photo","/user/hand/left/input/x/click")?;
-    let action_exit = action_set.create_bool_action("exit","/user/hand/left/input/y/click")?;
+    let action_photo = action_set.create_float_action("photo","/user/hand/right/input/trigger/value")?;
+    let action_exit = action_set.create_bool_action("exit","/user/hand/right/input/b/click")?;
     let action_next = action_set.create_bool_action("next","/user/hand/right/input/a/click")?;
     let action_navigate = action_set.create_vec2_action("navigate","/user/hand/right/input/thumbstick")?;
     app.attach_action_set(&action_set)?;
 
     // and go...
     let mut is_running = true;
+    let mut photo_pressed = false;
+    let mut next_pressed = false;
     while is_running {
 
         app.flush().into_iter().for_each(|(_,event)| {
@@ -300,27 +303,35 @@ fn main() -> Result<(),String> {
 
                     // generate new fractal
                     let next = action_next.get_bool()?;
-                    if next {
+                    if next && !next_pressed {
                         render = generate_render();
                         viewer_tx.send(viewer::Command::Update(march,render)).unwrap();
                     }
+                    next_pressed = next;
 
                     // take picture
-                    let photo = action_photo.get_bool()?;
-                    if photo {
+                    let photo = action_photo.get_float()? > 0.8;
+                    if photo && !photo_pressed {
+                        let mut photo_march = march;
+                        let rotation = Mat4x4::<f32>::from(projector.head_orientation());
+                        photo_march.pose = march.pose * rotation;
                         tiler_tx.send(tiler::Command::Execute(
                             tiler::Config {
                                 type_: tiler::Type::Quad,
-                                flags: 0,
+                                flags: tiler::TILER_FLAGS_STEREO,
                                 tile_size: TILE_SIZE,
                                 tile_count: TILE_COUNT,
                                 current_tile: Vec2::ZERO,
-                                fov: Fov { l: -0.7,r: 0.7,b: -0.7,t: 0.7, },
+                                fovs: [
+                                    Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },
+                                    Fov { l: -FOV_ANGLE,r: FOV_ANGLE,b: -FOV_ANGLE,t: FOV_ANGLE, },
+                                ],
                             },
-                            march,
+                            photo_march,
                             render,
                         )).unwrap();
                     }
+                    photo_pressed = photo;
 
                     // calculate new position from thumbstick
                     let nav = action_navigate.get_vec2()?;

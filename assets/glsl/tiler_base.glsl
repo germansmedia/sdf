@@ -20,8 +20,13 @@ struct Config {
     uint tile_count_x,tile_count_y;
     uint current_tile_x,current_tile_y;
 
-    vec4 fov;
+    vec4 fovs[2];
 };
+
+layout (std140,push_constant) readonly uniform Push {
+    uint eye;
+    uint face;
+} push;
 
 layout (std140,binding = 0) readonly uniform Uniforms {
     Config config;

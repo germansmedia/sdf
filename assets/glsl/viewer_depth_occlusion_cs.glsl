@@ -40,15 +40,14 @@ void main() {
     vec3 up = (uniforms.march.pose * vec4(0.0,1.0,0.0,1.0)).xyz;
 
     // adjust origin for eye
-#define HALF_IOD 0.003
     vec3 dir = view - origin;
     vec3 up_dir = up - origin;
     vec3 eye_axis = cross(dir,up_dir);
     if (push.eye == 0) {
-        origin -= HALF_IOD * uniforms.march.scale * eye_axis;
+        origin -= 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
     }
     else {
-        origin += HALF_IOD * uniforms.march.scale * eye_axis;
+        origin += 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
     }
 
     // march the ray

@@ -18,10 +18,6 @@ layout (binding = 1) writeonly uniform image2D tile_image;
 
 void main() {
 
-    // GUIDE: mono quad first
-
-    // TODO: given the tile size, tile count and current tile, the current block inside this tile and the quad/cube/etc. configuration, calculate the view direction
-
     // get total dimensions
     float total_width = float(uniforms.config.tile_count_x * uniforms.config.tile_width);
     float total_height = float(uniforms.config.tile_count_y * uniforms.config.tile_height);
@@ -35,7 +31,7 @@ void main() {
     float vy = -1.0 + 2.0 * float(py) / float(total_height);
 
     // apply FOV
-    vec4 tan_fov = tan(uniforms.config.fov);
+    vec4 tan_fov = tan(uniforms.config.fovs[push.eye]);
     float aspect = total_width / total_height;
     float x = 0.5 * aspect * (-tan_fov.x + tan_fov.y) * vx + 0.5 * (-tan_fov.x - tan_fov.y);
     float y = 0.5 * (-tan_fov.z + tan_fov.w) * vy + 0.5 * (-tan_fov.z - tan_fov.w);
@@ -56,19 +52,17 @@ void main() {
 
     vec3 dir = view - origin;
 
-    /*
     // if stereo, adjust origin for eye
-#define HALF_IOD 0.003
-    vec3 dir = view - origin;
-    vec3 up_dir = up - origin;
-    vec3 eye_axis = cross(dir,up_dir);
-    if (push.eye == 0) {
-        origin -= HALF_IOD * uniforms.march.scale * eye_axis;
+    if ((uniforms.config.flags & FLAGS_STEREO) != 0) {
+        vec3 up_dir = up - origin;
+        vec3 eye_axis = cross(dir,up_dir);
+        if (push.eye == 0) {
+            origin -= 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
+        }
+        else {
+            origin += 0.5 * uniforms.march.iod * uniforms.march.scale * eye_axis;
+        }
     }
-    else {
-        origin += HALF_IOD * uniforms.march.scale * eye_axis;
-    }
-    */
 
     // march the ray
     vec4 dosi = process_dosi(origin,dir);
