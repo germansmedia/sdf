@@ -23,11 +23,11 @@ pub struct Params {
 
     pub scale: f32,  // The Scale
     pub horizon: f32,  // unscaled furthest distance
-    pub escape: f32,  // iteration escape value
-    pub de_stop: f32,  // closest approach to the fractal
+    pub escape: f32,  // fractal escape value
+    pub dtf_limit: f32,  // closest approach to the fractal
 
     pub max_steps: u32,  // maximum number of ray marching steps
     pub max_iterations: u32,  // maximum number of iterations
+    pub step_size: f32,  // size of marching step
     pub iod: f32,  // unscaled inter-ocular distance
-    pub tbd0: u32,
 }

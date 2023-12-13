@@ -35,6 +35,10 @@ void main() {
     vec3 forward = (uniforms.params.pose * vec4(uniforms.params.forward_dir.xyz,1.0)).xyz;
     vec3 dir = normalize(forward - origin);
 
+    // calculate solid angle per pixel
+    // TODO: also take FOV into account here
+    float sr_per_pixel = 1.0 / (float(uniforms.config.width) * float(uniforms.config.height));
+
     // measure distances
-    storage.depth = measure_depth(origin,dir);
+    storage.depth = measure_depth(origin,dir,sr_per_pixel);
 }

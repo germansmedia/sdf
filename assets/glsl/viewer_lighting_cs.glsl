@@ -52,8 +52,12 @@ void main() {
     ivec2 cp = ivec2(int(floor(c.x)),int(floor(c.y)));
     vec4 dosi = imageLoad(dosi_image,cp);
 
+    // calculate solid angle per pixel
+    // TODO: also take FOV into account here
+    float sr_per_pixel = 1.0 / (float(uniforms.config.width) * float(uniforms.config.height));
+
     // process lighting
-    vec3 pixel = process_lighting(dosi,origin,dir);
+    vec3 pixel = process_lighting(dosi,origin,dir,sr_per_pixel);
 
     // and draw
     draw_block(

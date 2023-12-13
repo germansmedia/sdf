@@ -13,6 +13,7 @@ use {
             SystemTime,
             UNIX_EPOCH,
         },
+        fs::read_to_string,
     },
     e_macros::*,
     e_base::*,
@@ -31,7 +32,6 @@ mod yardstick;
 
 const FOV_ANGLE: f32 = 0.5;
 
-const VIEW_SIZE: usize = 512;
 const TILE_SIZE: Vec2<u32> = Vec2 { x: 64,y: 64, };
 const TILE_COUNT: Vec2<u32> = Vec2 { x: 16,y: 9, };
 
@@ -69,7 +69,17 @@ fn hex_to_vec(hex: u32) -> Vec4<f32> {
     Vec4 { x: r,y: g,z: b,w: 1.0, }
 }
 
-fn generate_params() -> Params {
+fn generate_params(
+    pose: Pose<f32>,
+    scale: f32,
+    horizon: f32,
+    escape: f32,
+    dtf_limit: f32,
+    max_steps: usize,
+    max_iterations: usize,
+    step_size: f32,
+    iod: f32,
+) -> Params {
     let n = (random() & 15) as usize;
     logd!("n = {}",n);
     let palette = &PALETTES[n];
@@ -103,7 +113,7 @@ fn generate_params() -> Params {
     };
     background_color.w = 0.4 * (((random() & 31) as f32) / 31.0);
     Params {
-        pose: Pose::ONE.into(),
+        pose: pose.into(),
         forward_dir: Vec4::UNIT_Z,
         key_light_pos: Vec4 { x: -10.0,y: 20.0,z: 30.0, w: 1.0, },
         key_light_color: Vec4 { x: 1.2,y: 0.9,z: 0.7,w: 1.0, },
@@ -122,14 +132,14 @@ fn generate_params() -> Params {
             palette[2],
             palette[3],
         ],
-        scale: 1.0,
-        horizon: 100.0,
-        escape: 20.0,
-        de_stop: 0.00005,
-        max_steps: 600,
-        max_iterations: 40,
-        iod: 0.03,
-        tbd0: 0,
+        scale,
+        horizon,
+        escape,
+        dtf_limit,
+        max_steps: max_steps as u32,
+        max_iterations: max_iterations as u32,
+        step_size,
+        iod,
     }
 }
 
@@ -144,8 +154,32 @@ fn main() -> Result<(),String> {
     let mut pose = Pose { p: Vec3 { x: 0.0,y: 0.0,z: 10.0, },o: Quat::ONE, };  // camera relative to fractal
 
     // parameters
-    let mut params = generate_params();
-    params.pose = pose.into();
+    let mut view_size = 512usize;
+    let mut horizon = 100.0f32;
+    let mut escape = 20.0f32;
+    let mut dtf_limit = 1.0f32;
+    let mut max_steps = 600usize;
+    let mut max_iterations = 40usize;
+    let mut step_size = 1.0f32;
+    let mut iod = 0.03f32;
+    read_to_string("params.txt").unwrap().lines().for_each(|line| {
+        let v: Vec<&str> = line.split(':').collect();
+        if v.len() == 2 {
+            logd!("read \"{}\" : \"{}\"",v[0].trim(),v[1].trim());
+            match v[0].trim().to_lowercase().as_str() {
+                "view_size" => { view_size = v[1].trim().parse().unwrap(); },
+                "horizon" => { horizon = v[1].trim().parse().unwrap(); },
+                "escape" => { escape = v[1].trim().parse().unwrap(); },
+                "dtf_limit" => { dtf_limit = v[1].trim().parse().unwrap(); },
+                "max_steps" => { max_steps = v[1].trim().parse().unwrap(); },
+                "max_iterations" => { max_iterations = v[1].trim().parse().unwrap(); },
+                "step_size" => { step_size = v[1].trim().parse().unwrap(); },
+                "iod" => { iod = v[1].trim().parse().unwrap(); },
+                _ => { },
+            }
+        }
+    });
+    let mut params = generate_params(pose,1.0,horizon,escape,dtf_limit,max_steps,max_iterations,step_size,iod);
 
     // keyframes
     let mut keyframes = [
@@ -154,7 +188,7 @@ fn main() -> Result<(),String> {
     ];
 
     // the equirectangular image that the viewer renders to and the projector shows
-    let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: VIEW_SIZE * 2,y: VIEW_SIZE, },2,1,1,ImageUsage::SampledStorage,AccessStyle::Gpu)?;
+    let rgba_image = gpu.create_empty_image2d(ImageFormat::RGBA8SRGB,Vec2 { x: view_size * 2,y: view_size, },2,1,1,ImageUsage::SampledStorage,AccessStyle::Gpu)?;
 
     // start viewer thread
     let viewer_gpu = Arc::clone(&gpu);
@@ -314,8 +348,7 @@ fn main() -> Result<(),String> {
                     // generate new fractal
                     let next = action_next.get_bool()?;
                     if next && !next_pressed {
-                        params = generate_params();
-                        params.pose = pose.into();
+                        params = generate_params(pose,params.scale,horizon,escape,dtf_limit,max_steps,max_iterations,step_size,iod);
                         viewer_tx.send(viewer::Command::Update(params)).unwrap();
                     }
                     next_pressed = next;

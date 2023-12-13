@@ -1,5 +1,3 @@
 vec4 sample_palette(float f) {
-    float nf = 7.0 * f;
-    float r = fract(nf);
-    return uniforms.params.palette[uint(floor(nf)) & 7];
+    return uniforms.params.palette[uint(floor(f)) & 7];
 }

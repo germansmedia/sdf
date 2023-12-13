@@ -27,6 +27,6 @@ float consult(in vec3 p,inout uint iterations) {
     float dr = 1.0;
     float r = length(v);
     iterations = 0;
-    INFINITERATE(amazingbox)
+    INFINITERATE(menger3)
     return r / abs(dr);
 }

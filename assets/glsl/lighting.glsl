@@ -18,40 +18,24 @@ vec3 construct_normal(vec3 p,float h) {
     );
 }
 
-float shadow_attenuation(vec3 p,vec3 dp,float r_max) {
-    float att = 0.0;
-    float r = 0.0;
-    uint iterations = 0;
-    float closest = r_max;
-    for (uint steps = 0; (steps < uniforms.params.max_steps) && (r < r_max); steps++) {
-        float de = consult(p + r * dp,iterations);
-        r += de;
-        if ((de < 0.1 * uniforms.params.de_stop) || (iterations > uniforms.params.max_iterations)) {
-            return 0.0;
-        }
-        closest = min(closest,de / r);
-    }
-    return clamp(uniforms.params.shadow_power.a * float(closest),0.0,1.0);
-}
-
-vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir) {
+vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir,in float sr_per_pixel) {
 
     vec3 pixel = uniforms.params.background_color.rgb;
     if (dosi.y >= 0.0) {
 
         float r = dosi.x;
-        float occlusion = pow(dosi.y,16.0);
+        float occlusion = pow(dosi.y,4.0);
         float ndist = r / (uniforms.params.scale * uniforms.params.horizon);
 
         // calculate incident point
         vec3 p = origin + r * dir;
 
         // calculate normal
-        vec3 n = construct_normal(p,0.0001 * r);
+        vec3 n = construct_normal(p,0.0001);
 
         // start lighting
         //vec3 albedo = uniforms.render.albedo_color.rgb;
-        vec3 albedo = sample_palette(0.1 * dosi.w).rgb;
+        vec3 albedo = sample_palette(dosi.w).rgb;
 
         float metallic = 0.0;
         float roughness = 0.4;
@@ -61,14 +45,14 @@ vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir) {
         vec3 dkey_light = uniforms.params.key_light_pos.xyz - p;
         float r_max = length(dkey_light);
         dkey_light = normalize(dkey_light);
-        vec3 key_shadow = pow(vec3(shadow_attenuation(p,dkey_light,r_max)),uniforms.params.shadow_power.rgb);
+        vec3 key_shadow = pow(vec3(process_shadow(p,dkey_light,sr_per_pixel,r_max)),uniforms.params.shadow_power.rgb);
 
         // apply key light
         vec3 key_result = uniforms.params.key_light_color.rgb * brdf(n,dkey_light,-dir,metallic,roughness,albedo,reflectance);
 
         // sky light
         vec3 dsky_light = vec3(0.0,1.0,0.0);
-        vec3 sky_shadow = pow(vec3(shadow_attenuation(p,dsky_light,uniforms.params.horizon)),uniforms.params.shadow_power.rgb);
+        vec3 sky_shadow = pow(vec3(process_shadow(p,dsky_light,sr_per_pixel,uniforms.params.horizon)),uniforms.params.shadow_power.rgb);
 
         // apply sky light
         vec3 sky_result = uniforms.params.sky_light_color.rgb * brdf(n,dsky_light,-dir,metallic,roughness,albedo,reflectance);

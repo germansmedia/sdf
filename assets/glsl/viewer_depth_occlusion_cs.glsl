@@ -50,8 +50,12 @@ void main() {
         origin += 0.5 * uniforms.params.iod * uniforms.params.scale * eye_axis;
     }
 
+    // calculate solid angle per pixel
+    // TODO: also take FOV into account here
+    float sr_per_pixel = 1.0 / (float(uniforms.config.width) * float(uniforms.config.height));
+
     // march the ray
-    vec4 dosi = process_dosi(origin,dir);
+    vec4 dosi = process_dosi(origin,dir,sr_per_pixel);
 
     // draw depth-occlusion-steps-iterations block
     draw_block(dosi_image,b,dosi);
@@ -62,7 +66,7 @@ void main() {
         float r = dosi.x;
         float ndist = r / (uniforms.params.scale * uniforms.params.horizon);
         float occlusion = pow(dosi.y,16.0);
-        vec3 albedo = sample_palette(0.1 * dosi.w).rgb;
+        vec3 albedo = sample_palette(dosi.w).rgb;
         vec3 ambient_result = uniforms.params.ambient_light_color.rgb * albedo;
         vec3 result = ambient_result * occlusion;
         float fog = clamp(16.0 * uniforms.params.background_color.a * ndist,0.0,1.0);

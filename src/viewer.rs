@@ -370,6 +370,7 @@ impl Viewer {
                         Phase::Bottom2x2 => if pass >= 31 { State::Rendering(Stage::DepthOcclusion,Phase::Right1x2,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Bottom2x2,pass + 1) },
                         Phase::Right1x2 => if pass >= 63 { State::Rendering(Stage::DepthOcclusion,Phase::Bottom1x1,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Right1x2,pass + 1) },
                         Phase::Bottom1x1 => if pass >= 127 { State::Rendering(Stage::Lighting,Phase::Full16x16,0) } else { State::Rendering(Stage::DepthOcclusion,Phase::Bottom1x1,pass + 1) },
+                        //Phase::Bottom1x1 => if pass >= 127 { State::Idle } else { State::Rendering(Stage::DepthOcclusion,Phase::Bottom1x1,pass + 1) },
                     };        
                 },
                 Stage::Lighting => {

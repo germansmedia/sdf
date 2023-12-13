@@ -96,25 +96,26 @@ pub struct Tiler {
 }
 
 fn interpolate_params(start: Params,end: Params,f: f32) -> Params {
+    let oos = (1.0 - f) / start.scale + f / end.scale;
     Params {
-        pose: (1.0 - f) * start.pose + f * end.pose,  // this is absolutely bad, but it works for simple linear motions
-        forward_dir: start.forward_dir,  // don't consider
+        pose: ((1.0 - f) * start.pose / start.scale + f * end.pose / end.scale) / oos,
+        forward_dir: start.forward_dir,
         key_light_pos: (1.0 - f) * start.key_light_pos + f * end.key_light_pos,
         key_light_color: (1.0 - f) * start.key_light_color + f * end.key_light_color,
         shadow_power: (1.0 - f) * start.shadow_power + f * end.shadow_power,
         sky_light_color: (1.0 - f) * start.sky_light_color + f * end.sky_light_color,
         ambient_light_color: (1.0 - f) * start.ambient_light_color + f * end.ambient_light_color,
-        background_color: start.background_color,  // don't consider
+        background_color: start.background_color,
         glow_color: (1.0 - f) * start.glow_color + f * end.glow_color,
-        palette: start.palette,  // don't consider
+        palette: start.palette,
         scale: (1.0 - f) * start.scale + f * end.scale,
-        horizon: start.horizon,  // don't consider
-        escape: start.escape,  // don't consider
-        de_stop: start.de_stop,  // don't consider
-        max_steps: start.max_steps,  // don't consider
-        max_iterations: start.max_iterations,  // don't consider
-        iod: start.iod,  // don't consider
-        tbd0: 0,
+        horizon: start.horizon,
+        escape: start.escape,
+        dtf_limit: start.dtf_limit,
+        max_steps: start.max_steps,
+        max_iterations: start.max_iterations,
+        step_size: start.step_size,
+        iod: start.iod,
     }
 }
 

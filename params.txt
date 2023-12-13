@@ -1,0 +1,8 @@
+view_size: 2048
+horizon: 100.0
+escape: 20.0
+dtf_limit: 0.01
+max_steps: 600
+max_iterations: 6
+step_size: 1.0
+iod: 0.03

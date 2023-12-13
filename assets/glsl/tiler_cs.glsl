@@ -64,11 +64,15 @@ void main() {
         }
     }
 
+    // calculate solid angle per pixel
+    // TODO: also take FOV into account here
+    float sr_per_pixel = 1.0 / (total_width * total_height);
+
     // march the ray
-    vec4 dosi = process_dosi(origin,dir);
+    vec4 dosi = process_dosi(origin,dir,sr_per_pixel);
 
     // process the lighting
-    vec3 pixel = process_lighting(dosi,origin,dir);
+    vec3 pixel = process_lighting(dosi,origin,dir,sr_per_pixel);
 
     // and draw
     imageStore(tile_image,ivec2(gl_GlobalInvocationID.x,gl_GlobalInvocationID.y),vec4(pixel,1.0));

@@ -1,5 +1,7 @@
 # TODO
 
+- scale pose matrix hyperbolically
+- if that doesn't work, separate pose into actual pose and do the matrix transformation at the end
 - discrete color palettes
 - discrete BRDF values
 - color textures

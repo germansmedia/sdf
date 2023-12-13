@@ -1,0 +1,1 @@
+- smaller pixels = more detail = smaller DTF
