@@ -31,15 +31,15 @@ vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir,in float sr_per_pi
         vec3 p = origin + r * dir;
 
         // calculate normal
-        vec3 n = construct_normal(p,0.0001);
+        vec3 n = construct_normal(p,0.0001 * r);
 
         // start lighting
-        //vec3 albedo = uniforms.render.albedo_color.rgb;
-        vec3 albedo = sample_palette(dosi.w).rgb;
+        //vec3 albedo = sample_palette(dosi.w).rgb;
+        vec3 albedo = sample_palette(0.0).rgb;
 
         float metallic = 0.0;
-        float roughness = 0.4;
-        float reflectance = 0.2;
+        float roughness = 0.7;
+        float reflectance = 1.0;
 
         // key light
         vec3 dkey_light = uniforms.params.key_light_pos.xyz - p;
@@ -62,12 +62,15 @@ vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir,in float sr_per_pi
 
         // combine all lighting
         vec3 result = key_result * key_shadow + (sky_result * sky_shadow + ambient_result) * occlusion;
+        //vec3 result = key_result + (sky_result + ambient_result) * occlusion;
 
         // calculate fog
         float fog = clamp(16.0 * uniforms.params.background_color.a * ndist,0.0,1.0);
 
         // and mix with fog
         pixel = mix(result,pixel,fog);
+
+        //pixel = vec3(0.5) + 0.5 * n;
     }
 
     return pixel;

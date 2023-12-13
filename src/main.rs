@@ -74,7 +74,8 @@ fn generate_params(
     scale: f32,
     horizon: f32,
     escape: f32,
-    dtf_limit: f32,
+    dtf_const: f32,
+    dtf_linear: f32,
     max_steps: usize,
     max_iterations: usize,
     step_size: f32,
@@ -115,8 +116,8 @@ fn generate_params(
     Params {
         pose: pose.into(),
         forward_dir: Vec4::UNIT_Z,
-        key_light_pos: Vec4 { x: -10.0,y: 20.0,z: 30.0, w: 1.0, },
-        key_light_color: Vec4 { x: 1.2,y: 0.9,z: 0.7,w: 1.0, },
+        key_light_pos: Vec4 { x: -20.0,y: 30.0,z: 30.0, w: 1.0, },
+        key_light_color: Vec4 { x: 0.9,y: 0.8,z: 0.7,w: 1.0, },
         shadow_power: Vec4 { x: 1.0,y: 1.2,z: 1.5, w: 40.0, },
         sky_light_color: Vec4 { x: 0.16,y: 0.20,z: 0.28,w: 1.0, },
         ambient_light_color: Vec4 { x: 0.40,y: 0.28,z: 0.20,w: 1.0, },
@@ -135,11 +136,15 @@ fn generate_params(
         scale,
         horizon,
         escape,
-        dtf_limit,
+        dtf_const,
+        dtf_linear,
         max_steps: max_steps as u32,
         max_iterations: max_iterations as u32,
         step_size,
         iod,
+        tbd0: 0,
+        tbd1: 0,
+        tbd2: 0,
     }
 }
 
@@ -157,7 +162,8 @@ fn main() -> Result<(),String> {
     let mut view_size = 512usize;
     let mut horizon = 100.0f32;
     let mut escape = 20.0f32;
-    let mut dtf_limit = 1.0f32;
+    let mut dtf_const = 1.0f32;
+    let mut dtf_linear = 0.0f32;
     let mut max_steps = 600usize;
     let mut max_iterations = 40usize;
     let mut step_size = 1.0f32;
@@ -170,7 +176,8 @@ fn main() -> Result<(),String> {
                 "view_size" => { view_size = v[1].trim().parse().unwrap(); },
                 "horizon" => { horizon = v[1].trim().parse().unwrap(); },
                 "escape" => { escape = v[1].trim().parse().unwrap(); },
-                "dtf_limit" => { dtf_limit = v[1].trim().parse().unwrap(); },
+                "dtf_const" => { dtf_const = v[1].trim().parse().unwrap(); },
+                "dtf_linear" => { dtf_linear = v[1].trim().parse().unwrap(); },
                 "max_steps" => { max_steps = v[1].trim().parse().unwrap(); },
                 "max_iterations" => { max_iterations = v[1].trim().parse().unwrap(); },
                 "step_size" => { step_size = v[1].trim().parse().unwrap(); },
@@ -179,7 +186,7 @@ fn main() -> Result<(),String> {
             }
         }
     });
-    let mut params = generate_params(pose,1.0,horizon,escape,dtf_limit,max_steps,max_iterations,step_size,iod);
+    let mut params = generate_params(pose,1.0,horizon,escape,dtf_const,dtf_linear,max_steps,max_iterations,step_size,iod);
 
     // keyframes
     let mut keyframes = [
@@ -348,7 +355,7 @@ fn main() -> Result<(),String> {
                     // generate new fractal
                     let next = action_next.get_bool()?;
                     if next && !next_pressed {
-                        params = generate_params(pose,params.scale,horizon,escape,dtf_limit,max_steps,max_iterations,step_size,iod);
+                        params = generate_params(pose,params.scale,horizon,escape,dtf_const,dtf_linear,max_steps,max_iterations,step_size,iod);
                         viewer_tx.send(viewer::Command::Update(params)).unwrap();
                     }
                     next_pressed = next;

@@ -23,12 +23,17 @@ struct Params {
     float scale;  // The Scale
     float horizon;  // unscaled furthest distance
     float escape;  // iteration escape value
-    float dtf_limit;  // closest distance to the fractal
+    float dtf_const;  // distance to fractal limit constant
 
+    float dtf_linear;  // distance to fractal limit linear
     uint max_steps;  // maximum number of ray marching steps
     uint max_iterations;  // maximum number of iterations
     float step_size;  // size of each marching step
+
     float iod;  // unscaled inter-occular distance
+    uint tbd0;
+    uint tbd1;
+    uint tbd2;
 };
 
 #endif

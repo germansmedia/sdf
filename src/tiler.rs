@@ -111,11 +111,15 @@ fn interpolate_params(start: Params,end: Params,f: f32) -> Params {
         scale: (1.0 - f) * start.scale + f * end.scale,
         horizon: start.horizon,
         escape: start.escape,
-        dtf_limit: start.dtf_limit,
+        dtf_const: start.dtf_const,
+        dtf_linear: start.dtf_linear,
         max_steps: start.max_steps,
         max_iterations: start.max_iterations,
         step_size: start.step_size,
         iod: start.iod,
+        tbd0: 0,
+        tbd1: 0,
+        tbd2: 0,
     }
 }
 
