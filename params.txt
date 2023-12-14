@@ -2,7 +2,7 @@ view_size: 2048
 horizon: 100.0
 escape: 20.0
 dtf_const: 0.0001
-dtf_linear: 0.001
+dtf_linear: 0.01
 max_steps: 600
 max_iterations: 30
 step_size: 0.2

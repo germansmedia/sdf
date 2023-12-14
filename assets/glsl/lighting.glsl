@@ -31,7 +31,8 @@ vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir,in float sr_per_pi
         vec3 p = origin + r * dir;
 
         // calculate normal
-        vec3 n = construct_normal(p,0.0001 * r);
+        float min_dtf = uniforms.params.dtf_const + uniforms.params.dtf_linear * r;
+        vec3 n = construct_normal(p,min_dtf);
 
         // start lighting
         vec3 albedo = sample_palette(dosi.w).rgb;

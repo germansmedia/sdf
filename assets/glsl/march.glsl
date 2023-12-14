@@ -113,12 +113,12 @@ bool march_ray(
             // take a few tiny steps back (https://www.shadertoy.com/view/3t3GWH)
             dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
             r += uniforms.params.step_size * dtf;
-            dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
-            r += uniforms.params.step_size * dtf;
-            dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
-            r += uniforms.params.step_size * dtf;
-            dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
-            r += uniforms.params.step_size * dtf;
+            //dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
+            //r += uniforms.params.step_size * dtf;
+            //dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
+            //r += uniforms.params.step_size * dtf;
+            //dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
+            //r += uniforms.params.step_size * dtf;
 
             return true;
         }
