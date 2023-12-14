@@ -98,19 +98,33 @@ bool march_ray(
     attenuation = r_max;
 
     // keep searching until either the ray becomes too long, or the number of steps is too high
-    for(steps = 0; (r < r_max) && (steps < uniforms.params.max_steps); steps++) {
+    for(steps = 0; (r < r_max) && (steps < uniforms.params.max_steps) && (iterations <= uniforms.params.max_iterations); steps++) {
 
         // sample the fractal
         float dtf = consult(p + r * dp,iterations);
 
-        // update attenuation and total distance
+        // update attenuation
         attenuation = min(attenuation,dtf / r);
-        r += uniforms.params.step_size * dtf;
 
-        // if that is a hit, report
-        if ((iterations > uniforms.params.max_iterations) || (dtf < (uniforms.params.dtf_const + uniforms.params.dtf_linear * r) * sr_per_pixel)) {
+        // if that is a hit
+        float min_dtf = uniforms.params.dtf_const + uniforms.params.dtf_linear * r;
+        if (dtf < min_dtf) {
+
+            // take a few tiny steps back (https://www.shadertoy.com/view/3t3GWH)
+            dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
+            r += uniforms.params.step_size * dtf;
+            dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
+            r += uniforms.params.step_size * dtf;
+            dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
+            r += uniforms.params.step_size * dtf;
+            dtf = consult(p + r * dp,iterations) - 2.0 * min_dtf;
+            r += uniforms.params.step_size * dtf;
+
             return true;
         }
+
+        // take the step 
+        r += uniforms.params.step_size * dtf;
     }
 
     return false;

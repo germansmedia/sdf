@@ -34,8 +34,8 @@ vec3 process_lighting(in vec4 dosi,in vec3 origin,in vec3 dir,in float sr_per_pi
         vec3 n = construct_normal(p,0.0001 * r);
 
         // start lighting
-        //vec3 albedo = sample_palette(dosi.w).rgb;
-        vec3 albedo = sample_palette(0.0).rgb;
+        vec3 albedo = sample_palette(dosi.w).rgb;
+        //vec3 albedo = sample_palette(0.0).rgb;
 
         float metallic = 0.0;
         float roughness = 0.7;

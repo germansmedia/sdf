@@ -14,5 +14,9 @@ https://www.shadertoy.com/view/cddSR2
 https://www.shadertoy.com/view/wtGfRy
 https://www.shadertoy.com/view/wtfcWN
 https://www.shadertoy.com/view/3t3GWH
+
+- in distance estimation, take a few tiny steps back after hitting the fractal
+- smooth out the normals
+
 https://www.shadertoy.com/view/wd33zl
 https://www.shadertoy.com/view/DdB3Dw

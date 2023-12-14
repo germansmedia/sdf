@@ -66,8 +66,8 @@ void main() {
         float r = dosi.x;
         float ndist = r / (uniforms.params.scale * uniforms.params.horizon);
         float occlusion = pow(dosi.y,4.0);
-        //vec3 albedo = sample_palette(dosi.w).rgb;
-        vec3 albedo = sample_palette(0.0).rgb;
+        vec3 albedo = sample_palette(dosi.w).rgb;
+        //vec3 albedo = sample_palette(0.0).rgb;
         vec3 ambient_result = uniforms.params.ambient_light_color.rgb * albedo;
         vec3 result = ambient_result * occlusion;
         float fog = clamp(16.0 * uniforms.params.background_color.a * ndist,0.0,1.0);
