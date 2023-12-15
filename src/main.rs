@@ -306,6 +306,7 @@ fn main() -> Result<(),String> {
     let action_exit = action_set.create_bool_action("exit","/user/hand/right/input/b/click")?;
     let action_next = action_set.create_bool_action("next","/user/hand/right/input/a/click")?;
     let action_navigate = action_set.create_vec2_action("navigate","/user/hand/right/input/thumbstick")?;
+    let action_params = action_set.create_vec2_action("params","/user/hand/left/input/thumbstick")?;
     app.attach_action_set(&action_set)?;
 
     // and go...
@@ -414,6 +415,15 @@ fn main() -> Result<(),String> {
                         */
                     }
                     photo_pressed = photo;
+
+                    // adjust parameters
+                    let control = action_params.get_vec2()?;
+                    if (control.x != 0.0) {
+                        params.dtf_const *= 1.1f32.powf(control.x);
+                        params.scale = yardstick.measure_depth(&params)?;
+                        viewer_tx.send(viewer::Command::Update(params)).unwrap();
+                        logd!("r = {}, dtf_const = {}",params.scale,params.dtf_const);
+                    }
 
                     // calculate new position from thumbstick
                     let nav = action_navigate.get_vec2()?;

@@ -4,7 +4,7 @@
 #define AMAZING_I vec3(0.5,0.0,0.0)
 #define AMAZING_RADIUS 1.0
 
-void amazingbox(inout vec3 v,inout float dr,vec3 c) {
+void amazingbox(inout vec3 v,in vec3 c,inout float dr) {
 
     v = abs(v -AMAZING_FOLD) + v - abs(v + AMAZING_FOLD) + AMAZING_I;
     float r2 = dot(v,v);

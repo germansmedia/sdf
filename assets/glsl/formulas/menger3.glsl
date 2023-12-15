@@ -4,7 +4,7 @@
 #define MENGER3_ROTATION2 mat3(0.9987503,0.0000000,0.0499792,0.0004998,0.9999500,-0.0099873,-0.0499767,0.0099998,0.9987003)
 #define MENGER3_ROTATION3 mat3(0.9985012,-0.0055561,0.0544474, -0.0000000,0.9948338,0.1015173, -0.0547301,-0.1013652,0.9933427)
 
-void menger3(inout vec3 v,inout float dr,vec3 c) {
+void menger3(inout vec3 v,in vec3 c,inout float dr) {
     v = abs(v);
     //v = MENGER3_ROTATION1 * v;
     //v = MENGER3_ROTATION2 * v;
